@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { requireRole } from '@webwaka/core';
-import type { Bindings } from '../../core/types';
+import type { Bindings, AppVariables } from '../../core/types';
 
-export const feeCollectionRouter = new Hono<{ Bindings: Bindings }>();
+export const feeCollectionRouter = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
 feeCollectionRouter.get('/', requireRole(['admin', 'accountant']), async (c) => {
   const user = c.get('user');

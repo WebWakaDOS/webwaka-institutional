@@ -14,33 +14,27 @@
 
 import { Hono } from 'hono';
 import { jwtAuthMiddleware, secureCORS, rateLimit } from '@webwaka/core';
-import type { Bindings } from './core/types';
+import type { Bindings, AppVariables } from './core/types';
 import { studentMgmtRouter } from './modules/student-mgmt/index';
 import { staffMgmtRouter } from './modules/staff-mgmt/index';
 import { feeCollectionRouter } from './modules/fee-collection/index';
 
-const app = new Hono<{ Bindings: Bindings }>();
+const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
 // ─── Global Middleware ────────────────────────────────────────────────────────
 
 // Invariant: No wildcard CORS — environment-aware allowlist only
-app.use('*', async (c, next) => {
-  const corsMiddleware = secureCORS(c.env.ENVIRONMENT);
-  return corsMiddleware(c, next);
-});
+// secureCORS() v1.3.0: options-based, reads ENVIRONMENT from c.env internally
+app.use('*', secureCORS());
 
 // Rate limiting on all auth and mutation endpoints
-app.use('/api/auth/*', async (c, next) => {
-  const limiter = rateLimit(c.env.RATE_LIMIT_KV, { maxRequests: 10, windowSeconds: 60 });
-  return limiter(c, next);
-});
+// rateLimit() v1.3.0: options-based, reads RATE_LIMIT_KV from c.env internally
+app.use('/api/auth/*', rateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'institutional-auth' }));
 
 // JWT authentication on all /api/* routes
 // tenantId is ALWAYS extracted from JWT payload — NEVER from headers or body
-app.use('/api/*', async (c, next) => {
-  const authMiddleware = jwtAuthMiddleware(c.env.JWT_SECRET, c.env.SESSIONS_KV);
-  return authMiddleware(c, next);
-});
+// jwtAuthMiddleware() v1.3.0: reads JWT_SECRET from c.env internally
+app.use('/api/*', jwtAuthMiddleware());
 
 // ─── Health Check (unauthenticated) ──────────────────────────────────────────
 app.get('/health', (c) => c.json({ status: 'ok', service: 'webwaka-institutional', version: '0.1.0' }));

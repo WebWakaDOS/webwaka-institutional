@@ -38,7 +38,7 @@ export function formatCurrency(amountKobo: number, currency: string, locale: Sup
 }
 
 // Nigerian educational institution types
-export const INSTITUTION_TYPE_LABELS: Record<string, Record<SupportedLocale, string>> = {
+export const INSTITUTION_TYPE_LABELS: Record<'primary_school' | 'secondary_school' | 'university' | 'polytechnic' | 'vocational' | 'training_centre', Record<SupportedLocale, string>> = {
   primary_school: {
     'en-NG': 'Primary School', 'en-GH': 'Primary School', 'en-KE': 'Primary School',
     'en-ZA': 'Primary School', 'fr-CI': 'École Primaire', 'yo-NG': 'Ile-iwe Alakobere', 'ha-NG': 'Makarantar Firamare',
@@ -66,7 +66,7 @@ export const INSTITUTION_TYPE_LABELS: Record<string, Record<SupportedLocale, str
 };
 
 // Nigerian fee types
-export const FEE_TYPE_LABELS: Record<string, Record<SupportedLocale, string>> = {
+export const FEE_TYPE_LABELS: Record<'tuition' | 'hostel' | 'exam', Record<SupportedLocale, string>> = {
   tuition: {
     'en-NG': 'Tuition Fee', 'en-GH': 'Tuition Fee', 'en-KE': 'School Fee',
     'en-ZA': 'Tuition Fee', 'fr-CI': 'Frais de Scolarité', 'yo-NG': 'Owo Ile-iwe', 'ha-NG': 'Kudin Makaranta',

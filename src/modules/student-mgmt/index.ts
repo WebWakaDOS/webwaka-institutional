@@ -1,8 +1,8 @@
 import { Hono } from 'hono';
 import { requireRole } from '@webwaka/core';
-import type { Bindings } from '../../core/types';
+import type { Bindings, AppVariables } from '../../core/types';
 
-export const studentMgmtRouter = new Hono<{ Bindings: Bindings }>();
+export const studentMgmtRouter = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
 // Invariant 1: Build Once Use Infinitely
 // Role-based access control via @webwaka/core primitives
