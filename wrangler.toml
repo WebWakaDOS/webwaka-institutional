@@ -22,7 +22,7 @@ id = "655cfec5e7b34508b0971950263e0334"
 
 [[env.staging.r2_buckets]]
 binding = "MEDIA_BUCKET"
-bucket_name = "webwaka-institutional-media-staging"
+bucket_name = "webwaka-institutional-docs-staging"
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
@@ -46,7 +46,7 @@ id = "2dc25403cd2a4f4eb3bc5eeba636e7cc"
 
 [[env.production.r2_buckets]]
 binding = "MEDIA_BUCKET"
-bucket_name = "webwaka-institutional-media-production"
+bucket_name = "webwaka-institutional-docs-prod"
 
 [env.production.vars]
 ENVIRONMENT = "production"
