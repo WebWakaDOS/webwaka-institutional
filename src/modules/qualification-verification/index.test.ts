@@ -370,6 +370,160 @@ describe('PATCH /api/qualifications/:id/review — admin review', () => {
   });
 });
 
+// ─── Integration tests: document upload ──────────────────────────────────────
+
+describe('POST /api/qualifications/:id/document — manual upload', () => {
+  beforeEach(() => { vi.restoreAllMocks(); });
+
+  it('uploads a document, persists the R2 key, and sets status to awaiting_review', async () => {
+    vi.spyOn(qualificationsModule, 'verifyJambResult').mockResolvedValue({ success: false, error: 'unavailable' });
+    const { app, db, r2, env } = makeApp();
+
+    // Create a pending manual record
+    const createRes = await makeRequest(app, env, 'POST', '/api/qualifications', {
+      studentId: 'student-doc-01',
+      jambRegNumber: 'TEST001',
+    });
+    const { id } = await createRes.json() as { id: string };
+
+    // Upload a document (simulate a PDF body)
+    const pdfBytes = new TextEncoder().encode('%PDF-1.4 fake-pdf-content');
+    const uploadReq = new Request(`http://localhost/api/qualifications/${id}/document`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: pdfBytes,
+    });
+    const uploadRes = await app.fetch(uploadReq, env as unknown as Record<string, unknown>);
+
+    expect(uploadRes.status).toBe(200);
+    const uploadBody = await uploadRes.json() as { success: boolean; objectKey: string };
+    expect(uploadBody.success).toBe(true);
+    expect(uploadBody.objectKey).toContain(`qualifications/tenant-inst-123/${id}`);
+    expect(uploadBody.objectKey).toMatch(/\.pdf$/);
+
+    // R2 should contain the file
+    expect(Object.keys(r2._store)).toHaveLength(1);
+    expect(Object.keys(r2._store)[0]).toBe(uploadBody.objectKey);
+
+    // DB record should be updated to awaiting_review
+    const row = db._rows.find((r) => r.id === id);
+    expect(row?.verificationStatus).toBe('awaiting_review');
+  });
+
+  it('returns 404 when uploading to an unknown verification id', async () => {
+    const { app, env } = makeApp();
+    const pdfBytes = new TextEncoder().encode('%PDF');
+    const uploadReq = new Request('http://localhost/api/qualifications/non-existent-id/document', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: pdfBytes,
+    });
+    const res = await app.fetch(uploadReq, env as unknown as Record<string, unknown>);
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 for an empty file body', async () => {
+    vi.spyOn(qualificationsModule, 'verifyJambResult').mockResolvedValue({ success: false, error: 'down' });
+    const { app, env } = makeApp();
+
+    const createRes = await makeRequest(app, env, 'POST', '/api/qualifications', {
+      studentId: 'student-doc-02',
+      jambRegNumber: 'TEST002',
+    });
+    const { id } = await createRes.json() as { id: string };
+
+    const uploadReq = new Request(`http://localhost/api/qualifications/${id}/document`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/pdf' },
+      body: new ArrayBuffer(0),
+    });
+    const res = await app.fetch(uploadReq, env as unknown as Record<string, unknown>);
+    expect(res.status).toBe(400);
+  });
+});
+
+// ─── Regression tests: logic-bug fix ─────────────────────────────────────────
+
+describe('Regression: partial WAEC fields must not produce verified status', () => {
+  beforeEach(() => { vi.restoreAllMocks(); });
+
+  it('falls back to manual when waecExamNumber is present but PIN and year are missing', async () => {
+    // No JAMB, partial WAEC (only examNumber, no PIN or year)
+    // Before the fix this would set anyApiSucceeded=true and return verified.
+    const { app, env } = makeApp();
+    const res = await makeRequest(app, env, 'POST', '/api/qualifications', {
+      studentId: 'student-reg-01',
+      waecExamNumber: '4200101001',
+      // waecScratchCardPin and waecExamYear intentionally omitted
+    });
+    const body = await res.json() as { verificationMode: string; verificationStatus: string };
+    expect(body.verificationMode).toBe('manual');
+    expect(body.verificationStatus).toBe('awaiting_review');
+  });
+
+  it('falls back to manual when only waecExamNumber and waecScratchCardPin are present (year missing)', async () => {
+    const { app, env } = makeApp();
+    const res = await makeRequest(app, env, 'POST', '/api/qualifications', {
+      studentId: 'student-reg-02',
+      waecExamNumber: '4200101001',
+      waecScratchCardPin: 'PIN123',
+      // waecExamYear intentionally omitted
+    });
+    const body = await res.json() as { verificationMode: string; verificationStatus: string };
+    expect(body.verificationMode).toBe('manual');
+    expect(body.verificationStatus).toBe('awaiting_review');
+  });
+});
+
+// ─── Security tests: sensitive field masking ──────────────────────────────────
+
+describe('Security: waecScratchCardPin is masked in GET responses', () => {
+  beforeEach(() => { vi.restoreAllMocks(); });
+
+  it('GET /:id does not expose the scratch card PIN', async () => {
+    vi.spyOn(qualificationsModule, 'verifyJambResult').mockResolvedValue({ success: false, error: 'down' });
+    const { app, env } = makeApp();
+
+    const createRes = await makeRequest(app, env, 'POST', '/api/qualifications', {
+      studentId: 'student-sec-01',
+      jambRegNumber: 'TEST999',
+      waecExamNumber: '4200101001',
+      waecScratchCardPin: 'SUPERSECRET-PIN',
+      waecExamYear: '2024',
+    });
+    const { id } = await createRes.json() as { id: string };
+
+    const getRes = await makeRequest(app, env, 'GET', `/api/qualifications/${id}`);
+    const getBody = await getRes.json() as { data: { waecScratchCardPin: string } };
+    expect(getBody.data.waecScratchCardPin).not.toBe('SUPERSECRET-PIN');
+    expect(getBody.data.waecScratchCardPin).toBe('***');
+  });
+
+  it('GET / list does not expose scratch card PINs for any record', async () => {
+    vi.spyOn(qualificationsModule, 'verifyJambResult').mockResolvedValue({ success: false, error: 'down' });
+    const { app, db, env } = makeApp();
+
+    await makeRequest(app, env, 'POST', '/api/qualifications', {
+      studentId: 'student-sec-02',
+      jambRegNumber: 'TEST888',
+      waecExamNumber: '111',
+      waecScratchCardPin: 'PIN-SHOULD-NOT-APPEAR',
+      waecExamYear: '2024',
+    });
+
+    // Ensure the DB row has the PIN stored (it should be stored for audit)
+    const row = db._rows[db._rows.length - 1];
+    expect(row?.waecScratchCardPin).toBe('PIN-SHOULD-NOT-APPEAR');
+
+    // But the list API must not return it
+    const listRes = await makeRequest(app, env, 'GET', '/api/qualifications');
+    const listBody = await listRes.json() as { data: Array<{ waecScratchCardPin?: string }> };
+    for (const record of listBody.data) {
+      expect(record.waecScratchCardPin).not.toBe('PIN-SHOULD-NOT-APPEAR');
+    }
+  });
+});
+
 // ─── Integration tests: tenant isolation ─────────────────────────────────────
 
 describe('Tenant isolation — Invariant 2', () => {

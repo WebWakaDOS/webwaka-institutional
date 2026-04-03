@@ -26,6 +26,18 @@ export const qualificationVerificationRouter = new Hono<{
   Variables: AppVariables;
 }>();
 
+/**
+ * Mask the WAEC scratch-card PIN in any outbound record.
+ * The PIN is a single-use credential stored for audit; it must never be
+ * returned to API consumers after the initial submission.
+ */
+function maskSensitiveFields(record: Record<string, unknown>): Record<string, unknown> {
+  if (record.waecScratchCardPin != null) {
+    return { ...record, waecScratchCardPin: '***' };
+  }
+  return record;
+}
+
 // ─── POST /api/qualifications ─────────────────────────────────────────────────
 // Student or admin submits a qualification verification request.
 // Tries JAMB + WAEC APIs; falls back to 'awaiting_review' if either is down.
@@ -53,18 +65,24 @@ qualificationVerificationRouter.post(
     const now = new Date().toISOString();
 
     // ── Attempt JAMB verification ────────────────────────────────────────────
+    // Track attempted/succeeded/failed independently — do NOT derive success
+    // from the absence of failure, because an unattempted call also has no failure.
     let jambScore: number | undefined;
     let jambVerifiedAt: string | undefined;
     let jambApiRaw: string | undefined;
+    let jambAttempted = false;
+    let jambSucceeded = false;
     let jambFailed = false;
 
     if (body.jambRegNumber) {
+      jambAttempted = true;
       const jambResult = await verifyJambResult({
         regNumber: body.jambRegNumber,
         apiKey: c.env.JAMB_API_KEY ?? '',
       });
 
       if (jambResult.success) {
+        jambSucceeded = true;
         jambScore = jambResult.score;
         jambVerifiedAt = now;
         jambApiRaw = JSON.stringify(jambResult.rawResponse);
@@ -75,11 +93,16 @@ qualificationVerificationRouter.post(
     }
 
     // ── Attempt WAEC verification ────────────────────────────────────────────
+    // All three WAEC fields must be present; a partial submission is NOT
+    // treated as a successful WAEC check — it goes straight to manual.
     let waecVerifiedAt: string | undefined;
     let waecApiRaw: string | undefined;
+    let waecAttempted = false;
+    let waecSucceeded = false;
     let waecFailed = false;
 
     if (body.waecExamNumber && body.waecScratchCardPin && body.waecExamYear) {
+      waecAttempted = true;
       const waecResult = await verifyWaecResult({
         examNumber: body.waecExamNumber,
         scratchCardPin: body.waecScratchCardPin,
@@ -88,6 +111,7 @@ qualificationVerificationRouter.post(
       });
 
       if (waecResult.success) {
+        waecSucceeded = true;
         waecVerifiedAt = now;
         waecApiRaw = JSON.stringify(waecResult.rawResponse);
       } else {
@@ -97,31 +121,32 @@ qualificationVerificationRouter.post(
     }
 
     // ── Determine mode and status ────────────────────────────────────────────
-    const apiRequested = !!body.jambRegNumber || !!(body.waecExamNumber);
-    const anyApiFailed = jambFailed || waecFailed;
-    const anyApiSucceeded =
-      (body.jambRegNumber && !jambFailed) ||
-      (body.waecExamNumber && !waecFailed);
+    // Use explicit success/failure booleans — never infer success from
+    // !failed, which would be truthy for unattempted calls (Bug fix).
+    const anyAttempted = jambAttempted || waecAttempted;
+    const anyFailed = jambFailed || waecFailed;
+    const anySucceeded = jambSucceeded || waecSucceeded;
+    const allAttemptedSucceeded = anyAttempted && !anyFailed;
 
     let verificationMode: string;
     let verificationStatus: string;
 
-    if (!apiRequested) {
-      // No API credentials provided at all — straight to manual
+    if (!anyAttempted) {
+      // No API was actually called — straight to manual
       verificationMode = 'manual';
       verificationStatus = 'awaiting_review';
-    } else if (anyApiFailed && !anyApiSucceeded) {
-      // All API calls failed — fallback to manual
+    } else if (anyFailed || !anySucceeded) {
+      // At least one API failed, or nothing succeeded — fallback to manual
       verificationMode = 'manual';
       verificationStatus = 'awaiting_review';
-    } else if (anyApiFailed && anyApiSucceeded) {
-      // Partial — one succeeded, one failed — keep manual for failed part
-      verificationMode = 'manual';
-      verificationStatus = 'awaiting_review';
-    } else {
-      // All APIs responded successfully
+    } else if (allAttemptedSucceeded) {
+      // Every attempted API returned success
       verificationMode = 'auto';
       verificationStatus = 'verified';
+    } else {
+      // Partial: some succeeded, some failed
+      verificationMode = 'manual';
+      verificationStatus = 'awaiting_review';
     }
 
     // ── Persist ──────────────────────────────────────────────────────────────
@@ -177,6 +202,7 @@ qualificationVerificationRouter.post(
 
 // ─── GET /api/qualifications ──────────────────────────────────────────────────
 // Admin lists all verification records for the tenant.
+// waecScratchCardPin is masked — single-use credentials must not be re-exposed.
 qualificationVerificationRouter.get(
   '/',
   requireRole(['admin']),
@@ -187,13 +213,14 @@ qualificationVerificationRouter.get(
       'SELECT * FROM qualificationVerifications WHERE tenantId = ? ORDER BY createdAt DESC'
     )
       .bind(tenantId)
-      .all();
+      .all<Record<string, unknown>>();
 
-    return c.json({ data: results });
+    return c.json({ data: results.map(maskSensitiveFields) });
   }
 );
 
 // ─── GET /api/qualifications/:id ─────────────────────────────────────────────
+// waecScratchCardPin is masked in the response — see maskSensitiveFields.
 qualificationVerificationRouter.get(
   '/:id',
   requireRole(['admin', 'student']),
@@ -206,13 +233,13 @@ qualificationVerificationRouter.get(
       'SELECT * FROM qualificationVerifications WHERE id = ? AND tenantId = ?'
     )
       .bind(id, tenantId)
-      .first();
+      .first<Record<string, unknown>>();
 
     if (!record) {
       return c.json({ error: 'Verification record not found' }, 404);
     }
 
-    return c.json({ data: record });
+    return c.json({ data: maskSensitiveFields(record) });
   }
 );
 
