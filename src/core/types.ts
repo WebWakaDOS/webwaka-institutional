@@ -15,6 +15,10 @@ export interface Bindings {
   PAYSTACK_SECRET_KEY: string;
   OPENROUTER_API_KEY: string;
   TERMII_API_KEY: string;
+  /** JAMB institutional API key — set via: wrangler secret put JAMB_API_KEY */
+  JAMB_API_KEY: string;
+  /** WAEC institutional API key — set via: wrangler secret put WAEC_API_KEY */
+  WAEC_API_KEY: string;
 }
 
 /**
@@ -33,6 +37,38 @@ export type StudentStatus = 'active' | 'graduated' | 'suspended' | 'withdrawn' |
 export type StaffRole = 'teacher' | 'lecturer' | 'admin' | 'support' | 'management';
 export type FeeType = 'tuition' | 'hostel' | 'exam' | 'library' | 'sports' | 'other';
 export type PaymentStatus = 'pending' | 'success' | 'failed' | 'partial';
+
+export type VerificationMode = 'auto' | 'manual';
+export type VerificationStatus = 'pending' | 'verified' | 'rejected' | 'awaiting_review';
+
+export interface QualificationVerification {
+  id: string;
+  tenantId: string;
+  studentId: string;
+
+  jambRegNumber?: string;
+  jambScore?: number;
+  jambVerifiedAt?: string;
+  jambApiRaw?: string;
+
+  waecExamNumber?: string;
+  waecScratchCardPin?: string;
+  waecExamYear?: string;
+  waecVerifiedAt?: string;
+  waecApiRaw?: string;
+
+  verificationMode: VerificationMode;
+  verificationStatus: VerificationStatus;
+
+  documentKeys: string; // JSON array of R2 object keys
+
+  reviewedBy?: string;
+  reviewNote?: string;
+  reviewedAt?: string;
+
+  createdAt: string;
+  updatedAt: string;
+}
 
 export interface Student {
   id: string;

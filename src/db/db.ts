@@ -9,7 +9,7 @@
  */
 
 import Dexie, { type Table } from 'dexie';
-import type { Student, FeeRecord } from '../core/types';
+import type { Student, FeeRecord, QualificationVerification } from '../core/types';
 
 interface MutationQueueEntry {
   id?: number;
@@ -24,6 +24,7 @@ interface MutationQueueEntry {
 export class InstitutionalOfflineDB extends Dexie {
   students!: Table<Student>;
   feeRecords!: Table<FeeRecord>;
+  qualificationVerifications!: Table<QualificationVerification>;
   mutationQueue!: Table<MutationQueueEntry>;
 
   constructor() {
@@ -31,6 +32,13 @@ export class InstitutionalOfflineDB extends Dexie {
     this.version(1).stores({
       students: 'id, tenantId, matricNumber, status, programmeId, level',
       feeRecords: 'id, tenantId, studentId, feeType, status, academicYear',
+      mutationQueue: '++id, tenantId, createdAt',
+    });
+    // Version 2 — adds qualificationVerifications for offline-first support
+    this.version(2).stores({
+      students: 'id, tenantId, matricNumber, status, programmeId, level',
+      feeRecords: 'id, tenantId, studentId, feeType, status, academicYear',
+      qualificationVerifications: 'id, tenantId, studentId, verificationStatus',
       mutationQueue: '++id, tenantId, createdAt',
     });
   }

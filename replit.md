@@ -43,6 +43,11 @@ This starts the Cloudflare Workers dev server on port 5000 using Wrangler v4.
 - `GET|POST /api/students/*` — Student management (JWT required)
 - `GET|POST /api/staff/*` — Staff management (JWT required)
 - `GET|POST /api/fees/*` — Fee collection (JWT required)
+- `POST /api/qualifications` — Submit JAMB/WAEC verification request (auto + manual fallback)
+- `GET /api/qualifications` — List verification records for tenant (admin)
+- `GET /api/qualifications/:id` — Get single verification record
+- `POST /api/qualifications/:id/document` — Upload supporting document to R2 (manual fallback)
+- `PATCH /api/qualifications/:id/review` — Admin approve/reject (manual review path)
 
 ## Environment Variables / Secrets
 
@@ -52,6 +57,8 @@ Set via `wrangler secret put <KEY> --env <staging|production>`:
 - `PAYSTACK_SECRET_KEY`
 - `OPENROUTER_API_KEY`
 - `TERMII_API_KEY`
+- `JAMB_API_KEY` — Institutional partner key for JAMB result verification API (T-INS-01)
+- `WAEC_API_KEY` — Institutional partner key for WAEC result verification API (T-INS-01)
 
 ## Deployment
 

@@ -56,3 +56,5 @@ ENVIRONMENT = "production"
 # PAYSTACK_SECRET_KEY
 # OPENROUTER_API_KEY
 # TERMII_API_KEY
+# JAMB_API_KEY   — Institutional partner key for JAMB result verification API
+# WAEC_API_KEY   — Institutional partner key for WAEC result verification API

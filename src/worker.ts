@@ -18,6 +18,7 @@ import type { Bindings, AppVariables } from './core/types';
 import { studentMgmtRouter } from './modules/student-mgmt/index';
 import { staffMgmtRouter } from './modules/staff-mgmt/index';
 import { feeCollectionRouter } from './modules/fee-collection/index';
+import { qualificationVerificationRouter } from './modules/qualification-verification/index';
 
 const app = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
@@ -43,6 +44,7 @@ app.get('/health', (c) => c.json({ status: 'ok', service: 'webwaka-institutional
 app.route('/api/students', studentMgmtRouter);
 app.route('/api/staff', staffMgmtRouter);
 app.route('/api/fees', feeCollectionRouter);
+app.route('/api/qualifications', qualificationVerificationRouter);
 
 // ─── 404 Handler ─────────────────────────────────────────────────────────────
 app.notFound((c) => c.json({ error: 'Not found' }, 404));
