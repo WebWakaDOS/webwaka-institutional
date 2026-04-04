@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "ZimM4MqpAAtrRHovwbcbc"
+uri = "file://WEBWAKA-INSTITUTIONAL-DEEP-RESEARCH-TASKBOOK.md"
+type = "text"
+title = "WEBWAKA-INSTITUTIONAL Deep Research + Enhancement Taskbook + QA Prompt Factory"
