@@ -7,6 +7,10 @@
  * rooms/resources, calls getAICompletion() from the ai-platform-client to generate
  * a conflict-free optimal schedule, then saves to the `schedules` D1 table.
  *
+ * Upstream outage resilience: if the AI platform is unavailable (network error,
+ * 503, timeout), the schedule is persisted with status='failed' and the response
+ * body includes a human-readable `retryHint` so the caller knows to try again.
+ *
  * Invariant 2: tenantId always from JWT.
  *
  * Routes:
@@ -62,13 +66,11 @@ schedulerRouter.post('/schedules', requireRole(['admin']), async (c) => {
   const now = new Date().toISOString();
   const inputData = { rooms: body.rooms, sessions: body.sessions, constraints: body.constraints };
 
-  // Persist as pending immediately so caller has an id to poll
   await c.env.DB.prepare(
     `INSERT INTO schedules (id, tenantId, title, type, inputData, status, createdBy, createdAt)
-     VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)`
-  ).bind(id, tenantId, body.title, body.type ?? 'room', JSON.stringify(inputData), createdBy, now).run();
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, tenantId, body.title, body.type ?? 'room', JSON.stringify(inputData), 'pending', createdBy, now).run();
 
-  // Build AI prompt
   const prompt = `You are an expert academic/facility scheduler.
 
 Generate a conflict-free, optimal schedule for the following:
@@ -101,7 +103,8 @@ Return a JSON object with this exact structure:
   let scheduleData: unknown = null;
   let model = 'unknown';
   let tokensUsed = 0;
-  let finalStatus = 'generated';
+  let finalStatus: 'generated' | 'failed' = 'generated';
+  let retryHint: string | undefined;
 
   try {
     const aiEnv = {
@@ -124,13 +127,15 @@ Return a JSON object with this exact structure:
     model = completion.model;
     tokensUsed = completion.usage.totalTokens;
 
-    // Parse AI response — strip markdown fences if present
     const raw = completion.content.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     scheduleData = JSON.parse(raw);
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     finalStatus = 'failed';
     scheduleData = { error: msg };
+    retryHint =
+      'The AI scheduling service is temporarily unavailable. ' +
+      'Your session data has been saved — please retry schedule generation for this request.';
   }
 
   const generatedAt = new Date().toISOString();
@@ -139,7 +144,16 @@ Return a JSON object with this exact structure:
      WHERE id = ? AND tenantId = ?`
   ).bind(JSON.stringify(scheduleData), model, tokensUsed, finalStatus, generatedAt, id, tenantId).run();
 
-  return c.json({ success: finalStatus === 'generated', id, status: finalStatus, data: scheduleData }, 201);
+  return c.json(
+    {
+      success: finalStatus === 'generated',
+      id,
+      status: finalStatus,
+      data: scheduleData,
+      ...(retryHint ? { retryHint } : {}),
+    },
+    201
+  );
 });
 
 // ─── GET /api/scheduler/schedules ─────────────────────────────────────────────

@@ -9,6 +9,10 @@
  * Invariant 2 (Multi-Tenant): tenantId always from JWT.
  * Invariant 5 (Nigeria First): all amounts in kobo (NGN × 100).
  *
+ * RBAC:
+ *   - requireRole(['admin'])        — coarse-grained: HR admin or institution admin
+ *   - requirePermissions(['manage:payroll']) — fine-grained: guards process + payslip routes
+ *
  * Routes:
  *   POST  /api/payroll/runs          — Initiate a payroll run for a period
  *   GET   /api/payroll/runs          — List payroll runs
@@ -18,41 +22,62 @@
  */
 
 import { Hono } from 'hono';
-import { requireRole } from '@webwaka/core';
+import { requireRole, requirePermissions } from '@webwaka/core';
 import type { Bindings, AppVariables } from '../../core/types';
 
 export const payrollRouter = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
 // Nigerian PAYE tax brackets (kobo per annum)
 // Source: Finance Act 2021
+//
+// Each entry is the SIZE of the bracket in kobo (not cumulative upper-bound).
+// Amounts in naira × 100 to convert to kobo:
+//   NGN   300,000 → 300_000_00 =  30,000,000 kobo
+//   NGN   500,000 → 500_000_00 =  50,000,000 kobo
+//   NGN 1,600,000 → 1_600_000_00 = 160,000,000 kobo
 const PAYE_BRACKETS = [
-  { upToKobo: 30_000_00,    ratePercent: 7  },
-  { upToKobo: 30_000_00,    ratePercent: 11 },
-  { upToKobo: 50_000_00,    ratePercent: 15 },
-  { upToKobo: 50_000_00,    ratePercent: 19 },
-  { upToKobo: 160_000_00,   ratePercent: 21 },
-  { upToKobo: Infinity,      ratePercent: 24 },
+  { upToKobo: 300_000_00,      ratePercent: 7  },  // First NGN 300,000 at 7%
+  { upToKobo: 300_000_00,      ratePercent: 11 },  // Next  NGN 300,000 at 11%
+  { upToKobo: 500_000_00,      ratePercent: 15 },  // Next  NGN 500,000 at 15%
+  { upToKobo: 500_000_00,      ratePercent: 19 },  // Next  NGN 500,000 at 19%
+  { upToKobo: 1_600_000_00,    ratePercent: 21 },  // Next  NGN 1,600,000 at 21%
+  { upToKobo: Infinity,        ratePercent: 24 },  // Above NGN 3,200,000 at 24%
 ] as const;
 
-/** Calculate Nigerian PAYE tax on annual gross income (kobo). Returns tax in kobo. */
-function calculatePayeTax(annualGrossKobo: number): number {
-  // Consolidated Relief Allowance: higher of NGN 200,000 or 1% of gross income + 20% of gross income
-  const craKobo = Math.max(200_000_00, Math.round(annualGrossKobo * 0.01)) + Math.round(annualGrossKobo * 0.20);
+/**
+ * Calculate Nigerian PAYE income tax on annual gross income (kobo).
+ * Returns annual tax in kobo.
+ *
+ * Exported for unit testing.
+ *
+ * Steps:
+ *   1. Compute Consolidated Relief Allowance (CRA):
+ *        max(NGN 200,000, 1% of gross) + 20% of gross
+ *   2. Taxable income = gross − CRA (floored at 0)
+ *   3. Apply progressive brackets
+ */
+export function calculatePayeTax(annualGrossKobo: number): number {
+  const craKobo =
+    Math.max(20_000_000, Math.round(annualGrossKobo * 0.01)) +
+    Math.round(annualGrossKobo * 0.20);
   let taxableKobo = Math.max(0, annualGrossKobo - craKobo);
   let taxKobo = 0;
 
   for (const bracket of PAYE_BRACKETS) {
     if (taxableKobo <= 0) break;
-    const taxableInBracket = Math.min(taxableKobo, bracket.upToKobo === Infinity ? taxableKobo : bracket.upToKobo);
-    taxKobo += Math.round(taxableInBracket * bracket.ratePercent / 100);
-    taxableKobo -= taxableInBracket;
+    const chunkKobo =
+      bracket.upToKobo === Infinity
+        ? taxableKobo
+        : Math.min(taxableKobo, bracket.upToKobo);
+    taxKobo += Math.round((chunkKobo * bracket.ratePercent) / 100);
+    taxableKobo -= chunkKobo;
   }
 
   return taxKobo;
 }
 
 // ─── POST /api/payroll/runs ───────────────────────────────────────────────────
-payrollRouter.post('/runs', requireRole(['admin']), async (c) => {
+payrollRouter.post('/runs', requireRole(['admin']), requirePermissions(['manage:payroll']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const createdBy = c.get('user').userId;
   const body = await c.req.json<{ period: string }>();
@@ -73,15 +98,16 @@ payrollRouter.post('/runs', requireRole(['admin']), async (c) => {
   const now = new Date().toISOString();
 
   await c.env.DB.prepare(
-    `INSERT INTO payrollRuns (id, tenantId, period, status, totalGrossKobo, totalNetKobo, createdBy, createdAt, updatedAt)
-     VALUES (?, ?, ?, 'draft', 0, 0, ?, ?, ?)`
-  ).bind(id, tenantId, body.period, createdBy, now, now).run();
+    `INSERT INTO payrollRuns
+       (id, tenantId, period, status, totalGrossKobo, totalNetKobo, createdBy, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(id, tenantId, body.period, 'draft', 0, 0, createdBy, now, now).run();
 
   return c.json({ success: true, id, period: body.period, status: 'draft' }, 201);
 });
 
 // ─── GET /api/payroll/runs ────────────────────────────────────────────────────
-payrollRouter.get('/runs', requireRole(['admin']), async (c) => {
+payrollRouter.get('/runs', requireRole(['admin']), requirePermissions(['manage:payroll']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { results } = await c.env.DB.prepare(
     'SELECT * FROM payrollRuns WHERE tenantId = ? ORDER BY period DESC'
@@ -90,7 +116,7 @@ payrollRouter.get('/runs', requireRole(['admin']), async (c) => {
 });
 
 // ─── GET /api/payroll/runs/:id ────────────────────────────────────────────────
-payrollRouter.get('/runs/:id', requireRole(['admin']), async (c) => {
+payrollRouter.get('/runs/:id', requireRole(['admin']), requirePermissions(['manage:payroll']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
 
@@ -108,106 +134,116 @@ payrollRouter.get('/runs/:id', requireRole(['admin']), async (c) => {
 });
 
 // ─── GET /api/payroll/payslips/:id ───────────────────────────────────────────
-payrollRouter.get('/payslips/:id', requireRole(['admin', 'staff']), async (c) => {
-  const tenantId = c.get('user').tenantId;
-  const id = c.req.param('id');
-  const user = c.get('user');
+payrollRouter.get(
+  '/payslips/:id',
+  requireRole(['admin', 'staff']),
+  requirePermissions(['manage:payroll']),
+  async (c) => {
+    const tenantId = c.get('user').tenantId;
+    const id = c.req.param('id');
+    const user = c.get('user');
 
-  const payslip = await c.env.DB.prepare(
-    'SELECT * FROM payslips WHERE id = ? AND tenantId = ?'
-  ).bind(id, tenantId).first<Record<string, unknown>>();
+    const payslip = await c.env.DB.prepare(
+      'SELECT * FROM payslips WHERE id = ? AND tenantId = ?'
+    ).bind(id, tenantId).first<Record<string, unknown>>();
 
-  if (!payslip) return c.json({ error: 'Payslip not found' }, 404);
+    if (!payslip) return c.json({ error: 'Payslip not found' }, 404);
 
-  // Staff can only view their own payslip
-  if (user.role === 'staff' && payslip.staffId !== user.userId) {
-    return c.json({ error: 'Forbidden' }, 403);
+    if (user.role === 'staff' && payslip.staffId !== user.userId) {
+      return c.json({ error: 'Forbidden' }, 403);
+    }
+
+    return c.json({ data: payslip });
   }
-
-  return c.json({ data: payslip });
-});
+);
 
 // ─── POST /api/payroll/runs/:id/process ──────────────────────────────────────
 // Main calculation engine: reads all active staff salaries, computes PAYE,
 // generates payslips, emits fintech.payout.requested events.
-payrollRouter.post('/runs/:id/process', requireRole(['admin']), async (c) => {
-  const tenantId = c.get('user').tenantId;
-  const runId = c.req.param('id');
+payrollRouter.post(
+  '/runs/:id/process',
+  requireRole(['admin']),
+  requirePermissions(['manage:payroll']),
+  async (c) => {
+    const tenantId = c.get('user').tenantId;
+    const runId = c.req.param('id');
 
-  const run = await c.env.DB.prepare(
-    'SELECT * FROM payrollRuns WHERE id = ? AND tenantId = ?'
-  ).bind(runId, tenantId).first<{ id: string; period: string; status: string }>();
+    const run = await c.env.DB.prepare(
+      'SELECT * FROM payrollRuns WHERE id = ? AND tenantId = ?'
+    ).bind(runId, tenantId).first<{ id: string; period: string; status: string }>();
 
-  if (!run) return c.json({ error: 'Payroll run not found' }, 404);
-  if (run.status !== 'draft') {
-    return c.json({ error: `Cannot process a run with status '${run.status}'` }, 409);
-  }
+    if (!run) return c.json({ error: 'Payroll run not found' }, 404);
+    if (run.status !== 'draft') {
+      return c.json({ error: `Cannot process a run with status '${run.status}'` }, 409);
+    }
 
-  // Fetch all active staff for the tenant (uses existing staff table from migration 0001)
-  const { results: staffList } = await c.env.DB.prepare(
-    `SELECT id, grossSalaryKobo, pensionDeductionKobo, otherDeductionsKobo
-     FROM staff WHERE tenantId = ? AND status = 'active'`
-  ).bind(tenantId).all<{
-    id: string;
-    grossSalaryKobo: number;
-    pensionDeductionKobo: number;
-    otherDeductionsKobo: number;
-  }>();
+    const { results: staffList } = await c.env.DB.prepare(
+      `SELECT id, grossSalaryKobo, pensionDeductionKobo, otherDeductionsKobo
+       FROM staff WHERE tenantId = ? AND status = ?`
+    ).bind(tenantId, 'active').all<{
+      id: string;
+      grossSalaryKobo: number;
+      pensionDeductionKobo: number;
+      otherDeductionsKobo: number;
+    }>();
 
-  const now = new Date().toISOString();
-  let totalGross = 0;
-  let totalNet = 0;
-  const events: unknown[] = [];
+    const now = new Date().toISOString();
+    let totalGross = 0;
+    let totalNet = 0;
+    const events: unknown[] = [];
+    let staffProcessed = 0;
 
-  for (const member of staffList) {
-    const grossKobo = member.grossSalaryKobo ?? 0;
-    const pensionKobo = member.pensionDeductionKobo ?? 0;
-    const otherKobo = member.otherDeductionsKobo ?? 0;
+    for (const member of staffList) {
+      const grossKobo = member.grossSalaryKobo ?? 0;
 
-    // Monthly → annual for PAYE bracket calc
-    const annualGrossKobo = grossKobo * 12;
-    const annualTaxKobo = calculatePayeTax(annualGrossKobo);
-    const monthlyTaxKobo = Math.round(annualTaxKobo / 12);
+      // Guard: skip rows that have no salary (e.g. non-staff rows from join tables)
+      if (!grossKobo) continue;
 
-    const deductionsKobo = pensionKobo + otherKobo;
-    const netKobo = Math.max(0, grossKobo - monthlyTaxKobo - deductionsKobo);
+      const pensionKobo = member.pensionDeductionKobo ?? 0;
+      const otherKobo = member.otherDeductionsKobo ?? 0;
 
-    const payslipId = crypto.randomUUID();
+      const annualGrossKobo = grossKobo * 12;
+      const annualTaxKobo = calculatePayeTax(annualGrossKobo);
+      const monthlyTaxKobo = Math.round(annualTaxKobo / 12);
+
+      const deductionsKobo = pensionKobo + otherKobo;
+      const netKobo = Math.max(0, grossKobo - monthlyTaxKobo - deductionsKobo);
+
+      const payslipId = crypto.randomUUID();
+      await c.env.DB.prepare(
+        `INSERT INTO payslips
+           (id, tenantId, payrollRunId, staffId, grossKobo, taxKobo, deductionsKobo, netKobo, status, createdAt)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).bind(payslipId, tenantId, runId, member.id, grossKobo, monthlyTaxKobo, deductionsKobo, netKobo, 'pending', now).run();
+
+      totalGross += grossKobo;
+      totalNet += netKobo;
+      staffProcessed += 1;
+
+      events.push({
+        event: 'fintech.payout.requested',
+        tenantId,
+        payslipId,
+        staffId: member.id,
+        amountKobo: netKobo,
+        period: run.period,
+        timestamp: now,
+      });
+    }
+
     await c.env.DB.prepare(
-      `INSERT INTO payslips
-         (id, tenantId, payrollRunId, staffId, grossKobo, taxKobo, deductionsKobo, netKobo, status, createdAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)`
-    ).bind(payslipId, tenantId, runId, member.id, grossKobo, monthlyTaxKobo, deductionsKobo, netKobo, now).run();
+      `UPDATE payrollRuns
+       SET status = ?, totalGrossKobo = ?, totalNetKobo = ?, runAt = ?, updatedAt = ?
+       WHERE id = ? AND tenantId = ?`
+    ).bind('completed', totalGross, totalNet, now, now, runId, tenantId).run();
 
-    totalGross += grossKobo;
-    totalNet += netKobo;
-
-    // Event payload for fintech payout worker (fire-and-forget; worker handles failures)
-    events.push({
-      event: 'fintech.payout.requested',
-      tenantId,
-      payslipId,
-      staffId: member.id,
-      amountKobo: netKobo,
-      period: run.period,
-      timestamp: now,
+    return c.json({
+      success: true,
+      runId,
+      staffProcessed,
+      totalGrossKobo: totalGross,
+      totalNetKobo: totalNet,
+      payoutEvents: events,
     });
   }
-
-  await c.env.DB.prepare(
-    `UPDATE payrollRuns
-     SET status = 'completed', totalGrossKobo = ?, totalNetKobo = ?, runAt = ?, updatedAt = ?
-     WHERE id = ? AND tenantId = ?`
-  ).bind(totalGross, totalNet, now, now, runId, tenantId).run();
-
-  // In production: push events to a Queue / KV / event bus.
-  // Here we return them so the caller or orchestrator can process.
-  return c.json({
-    success: true,
-    runId,
-    staffProcessed: staffList.length,
-    totalGrossKobo: totalGross,
-    totalNetKobo: totalNet,
-    payoutEvents: events,
-  });
-});
+);
