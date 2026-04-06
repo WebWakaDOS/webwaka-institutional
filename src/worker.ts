@@ -18,7 +18,7 @@ import type { Bindings, AppVariables } from './core/types';
 
 // ─── Existing Modules ─────────────────────────────────────────────────────────
 import { studentMgmtRouter }                  from './modules/student-mgmt/index';
-import { staffMgmtRouter }                    from './modules/inst_staff-mgmt/index';
+import { staffMgmtRouter }                    from './modules/staff-mgmt/index';
 import { feeCollectionRouter }                from './modules/fee-collection/index';
 import { qualificationVerificationRouter }    from './modules/qualification-verification/index';
 
@@ -40,13 +40,13 @@ import { schedulerRouter }                    from './modules/operations/schedul
 import { dataAnonRouter }                     from './modules/data-anon/index';
 
 // ─── Operational Modules ──────────────────────────────────────────────────────
-import { assetsRouter }                       from './modules/inst_assets/index';
+import { assetsRouter }                       from './modules/assets/index';
 import { visitorRouter }                      from './modules/visitor/index';
-import { alumniRouter }                       from './modules/inst_alumni/index';
+import { alumniRouter }                       from './modules/alumni/index';
 import { libraryRouter }                      from './modules/library/index';
 import { cafeteriaRouter }                    from './modules/cafeteria/index';
 import { attendanceRouter }                   from './modules/attendance/index';
-import { incidentsRouter }                    from './modules/inst_incidents/index';
+import { incidentsRouter }                    from './modules/incidents/index';
 import { dmsRouter }                          from './modules/dms/index';
 import { campusRouter }                       from './modules/campus/index';
 import { parentPortalRouter }                 from './modules/parent-portal/index';
