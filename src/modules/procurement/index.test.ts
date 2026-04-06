@@ -24,37 +24,37 @@ describe('Procurement — Vendors', () => {
   let ctx: ReturnType<typeof makeApp>;
   beforeEach(() => { ctx = makeApp(); });
 
-  it('POST /api/procurement/vendors — creates vendor (201)', async () => {
-    const res = await ctx.req('POST', '/api/procurement/vendors', { name: 'Tech Supplies Ltd', category: 'IT' });
+  it('POST /api/procurement/inst_vendors — creates vendor (201)', async () => {
+    const res = await ctx.req('POST', '/api/procurement/inst_vendors', { name: 'Tech Supplies Ltd', category: 'IT' });
     expect(res.status).toBe(201);
     const body = await res.json() as any;
     expect(body.success).toBe(true);
   });
 
-  it('POST /api/procurement/vendors — 400 when name missing', async () => {
-    const res = await ctx.req('POST', '/api/procurement/vendors', {});
+  it('POST /api/procurement/inst_vendors — 400 when name missing', async () => {
+    const res = await ctx.req('POST', '/api/procurement/inst_vendors', {});
     expect(res.status).toBe(400);
   });
 
-  it('GET /api/procurement/vendors — lists vendors', async () => {
-    await ctx.req('POST', '/api/procurement/vendors', { name: 'Tech Supplies' });
-    const res = await ctx.req('GET', '/api/procurement/vendors');
+  it('GET /api/procurement/inst_vendors — lists inst_vendors', async () => {
+    await ctx.req('POST', '/api/procurement/inst_vendors', { name: 'Tech Supplies' });
+    const res = await ctx.req('GET', '/api/procurement/inst_vendors');
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(Array.isArray(body.data)).toBe(true);
   });
 
-  it('GET /api/procurement/vendors/:id — returns vendor', async () => {
-    const createRes = await ctx.req('POST', '/api/procurement/vendors', { name: 'Office Depot' });
+  it('GET /api/procurement/inst_vendors/:id — returns vendor', async () => {
+    const createRes = await ctx.req('POST', '/api/procurement/inst_vendors', { name: 'Office Depot' });
     const { id } = await createRes.json() as any;
-    const res = await ctx.req('GET', `/api/procurement/vendors/${id}`);
+    const res = await ctx.req('GET', `/api/procurement/inst_vendors/${id}`);
     expect(res.status).toBe(200);
   });
 
-  it('PATCH /api/procurement/vendors/:id — updates vendor', async () => {
-    const createRes = await ctx.req('POST', '/api/procurement/vendors', { name: 'Old Vendor' });
+  it('PATCH /api/procurement/inst_vendors/:id — updates vendor', async () => {
+    const createRes = await ctx.req('POST', '/api/procurement/inst_vendors', { name: 'Old Vendor' });
     const { id } = await createRes.json() as any;
-    const res = await ctx.req('PATCH', `/api/procurement/vendors/${id}`, { status: 'inactive' });
+    const res = await ctx.req('PATCH', `/api/procurement/inst_vendors/${id}`, { status: 'inactive' });
     expect(res.status).toBe(200);
   });
 });

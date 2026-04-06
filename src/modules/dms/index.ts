@@ -40,7 +40,7 @@ dmsRouter.post('/', requireRole(['admin', 'management']), async (c) => {
 
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO documents
+    `INSERT INTO inst_documents
        (id, tenantId, title, category, description, r2Key, version, uploadedBy, status, tags, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)`
   ).bind(id, tenantId, title, category, description ?? null, r2Key, version,
@@ -49,10 +49,10 @@ dmsRouter.post('/', requireRole(['admin', 'management']), async (c) => {
   return c.json({ success: true, id, r2Key }, 201);
 });
 
-dmsRouter.get('/', requireRole(['admin', 'management', 'staff']), async (c) => {
+dmsRouter.get('/', requireRole(['admin', 'management', 'inst_staff']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { category, status, search } = c.req.query() as Record<string, string>;
-  let sql = 'SELECT id, title, category, description, version, uploadedBy, status, tags, createdAt FROM documents WHERE tenantId = ?';
+  let sql = 'SELECT id, title, category, description, version, uploadedBy, status, tags, createdAt FROM inst_documents WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
   if (category) { sql += ' AND category = ?'; args.push(category); }
   if (status)   { sql += ' AND status = ?';   args.push(status); }
@@ -62,11 +62,11 @@ dmsRouter.get('/', requireRole(['admin', 'management', 'staff']), async (c) => {
   return c.json({ data: results });
 });
 
-dmsRouter.get('/:id', requireRole(['admin', 'management', 'staff']), async (c) => {
+dmsRouter.get('/:id', requireRole(['admin', 'management', 'inst_staff']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const doc = await c.env.DB.prepare(
-    'SELECT * FROM documents WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_documents WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
   if (!doc) return c.json({ error: 'Document not found' }, 404);
   return c.json({ data: doc });
@@ -77,7 +77,7 @@ dmsRouter.patch('/:id/archive', requireRole(['admin', 'management']), async (c) 
   const id = c.req.param('id');
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `UPDATE documents SET status = 'archived', updatedAt = ? WHERE id = ? AND tenantId = ?`
+    `UPDATE inst_documents SET status = 'archived', updatedAt = ? WHERE id = ? AND tenantId = ?`
   ).bind(now, id, tenantId).run();
   return c.json({ success: true, status: 'archived' });
 });

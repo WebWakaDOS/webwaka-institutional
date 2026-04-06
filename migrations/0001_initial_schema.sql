@@ -1,7 +1,7 @@
 -- WebWaka Institutional Suite — D1 Database Schema
 -- Invariant 5: Nigeria First — All amounts in kobo integers
 
-CREATE TABLE IF NOT EXISTS students (
+CREATE TABLE IF NOT EXISTS inst_students (
   id TEXT PRIMARY KEY,
   tenantId TEXT NOT NULL,
   matricNumber TEXT NOT NULL,
@@ -10,9 +10,9 @@ CREATE TABLE IF NOT EXISTS students (
   level INTEGER NOT NULL,
   createdAt TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_students_tenantId ON students(tenantId);
+CREATE INDEX IF NOT EXISTS idx_students_tenantId ON inst_students(tenantId);
 
-CREATE TABLE IF NOT EXISTS staff (
+CREATE TABLE IF NOT EXISTS inst_staff (
   id TEXT PRIMARY KEY,
   tenantId TEXT NOT NULL,
   staffId TEXT NOT NULL,
@@ -21,9 +21,9 @@ CREATE TABLE IF NOT EXISTS staff (
   role TEXT NOT NULL,
   createdAt TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_staff_tenantId ON staff(tenantId);
+CREATE INDEX IF NOT EXISTS idx_staff_tenantId ON inst_staff(tenantId);
 
-CREATE TABLE IF NOT EXISTS feeRecords (
+CREATE TABLE IF NOT EXISTS inst_feeRecords (
   id TEXT PRIMARY KEY,
   tenantId TEXT NOT NULL,
   studentId TEXT NOT NULL,
@@ -33,4 +33,4 @@ CREATE TABLE IF NOT EXISTS feeRecords (
   academicYear TEXT NOT NULL,
   createdAt TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_feeRecords_tenantId ON feeRecords(tenantId);
+CREATE INDEX IF NOT EXISTS idx_feeRecords_tenantId ON inst_feeRecords(tenantId);

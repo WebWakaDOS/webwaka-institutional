@@ -70,7 +70,7 @@ describe('Document Management System', () => {
     expect(res.status).toBe(400);
   });
 
-  it('GET /api/dms — lists documents', async () => {
+  it('GET /api/dms — lists inst_documents', async () => {
     await ctx.upload('Academic Calendar');
     const res = await ctx.req('GET', '/api/dms');
     expect(res.status).toBe(200);

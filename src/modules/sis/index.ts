@@ -11,7 +11,7 @@
  *   GET   /api/sis/grades/:id              — Get grade
  *   PATCH /api/sis/grades/:id              — Update grade
  *
- *   GET   /api/sis/students/:studentId/transcript — Compute & return GPA transcript
+ *   GET   /api/sis/inst_students/:studentId/transcript — Compute & return GPA transcript
  *
  *   POST  /api/sis/disciplinary            — Record disciplinary incident
  *   GET   /api/sis/disciplinary            — List disciplinary records
@@ -58,7 +58,7 @@ sisRouter.post('/grades', requireRole(['admin', 'teacher']), async (c) => {
   const now = new Date().toISOString();
 
   await c.env.DB.prepare(
-    `INSERT INTO gradeRecords
+    `INSERT INTO inst_gradeRecords
        (id, tenantId, studentId, courseId, courseCode, courseName, semester, academicYear,
         score, grade, gradePoints, units, remarks, recordedBy, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -79,7 +79,7 @@ sisRouter.get('/grades', requireRole(['admin', 'teacher', 'student']), async (c)
     return c.json({ error: 'studentId query param is required for this role' }, 400);
   }
 
-  let sql = 'SELECT * FROM gradeRecords WHERE tenantId = ? AND studentId = ?';
+  let sql = 'SELECT * FROM inst_gradeRecords WHERE tenantId = ? AND studentId = ?';
   const args: unknown[] = [tenantId, effectiveStudentId];
   if (academicYear) { sql += ' AND academicYear = ?'; args.push(academicYear); }
   if (semester) { sql += ' AND semester = ?'; args.push(semester); }
@@ -93,7 +93,7 @@ sisRouter.get('/grades/:id', requireRole(['admin', 'teacher', 'student']), async
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const record = await c.env.DB.prepare(
-    'SELECT * FROM gradeRecords WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_gradeRecords WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
   if (!record) return c.json({ error: 'Grade record not found' }, 404);
   return c.json({ data: record });
@@ -119,7 +119,7 @@ sisRouter.patch('/grades/:id', requireRole(['admin', 'teacher']), async (c) => {
   }
 
   await c.env.DB.prepare(
-    `UPDATE gradeRecords
+    `UPDATE inst_gradeRecords
      SET score = COALESCE(?, score), grade = COALESCE(?, grade),
          gradePoints = COALESCE(?, gradePoints), remarks = COALESCE(?, remarks), updatedAt = ?
      WHERE id = ? AND tenantId = ?`
@@ -131,7 +131,7 @@ sisRouter.patch('/grades/:id', requireRole(['admin', 'teacher']), async (c) => {
 
 // ─── Transcript (GPA calculation) ────────────────────────────────────────────
 
-sisRouter.get('/students/:studentId/transcript', requireRole(['admin', 'teacher', 'student']), async (c) => {
+sisRouter.get('/inst_students/:studentId/transcript', requireRole(['admin', 'teacher', 'student']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const user = c.get('user');
   const studentId = c.req.param('studentId');
@@ -142,7 +142,7 @@ sisRouter.get('/students/:studentId/transcript', requireRole(['admin', 'teacher'
   }
 
   const { results: records } = await c.env.DB.prepare(
-    'SELECT * FROM gradeRecords WHERE tenantId = ? AND studentId = ? ORDER BY academicYear, semester'
+    'SELECT * FROM inst_gradeRecords WHERE tenantId = ? AND studentId = ? ORDER BY academicYear, semester'
   ).bind(tenantId, studentId).all<{
     academicYear: string; semester: string; courseCode: string; courseName: string;
     units: number; score: number; grade: string; gradePoints: number;
@@ -193,7 +193,7 @@ sisRouter.post('/disciplinary', requireRole(['admin', 'teacher']), async (c) => 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO disciplinaryRecords
+    `INSERT INTO inst_disciplinaryRecords
        (id, tenantId, studentId, incidentDate, description, severity, action, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, tenantId, body.studentId, body.incidentDate, body.description,
@@ -205,7 +205,7 @@ sisRouter.post('/disciplinary', requireRole(['admin', 'teacher']), async (c) => 
 sisRouter.get('/disciplinary', requireRole(['admin', 'teacher']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { studentId } = c.req.query() as Record<string, string>;
-  let sql = 'SELECT * FROM disciplinaryRecords WHERE tenantId = ?';
+  let sql = 'SELECT * FROM inst_disciplinaryRecords WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
   if (studentId) { sql += ' AND studentId = ?'; args.push(studentId); }
   sql += ' ORDER BY incidentDate DESC';
@@ -217,7 +217,7 @@ sisRouter.get('/disciplinary/:id', requireRole(['admin', 'teacher']), async (c) 
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const record = await c.env.DB.prepare(
-    'SELECT * FROM disciplinaryRecords WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_disciplinaryRecords WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
   if (!record) return c.json({ error: 'Disciplinary record not found' }, 404);
   return c.json({ data: record });
@@ -232,7 +232,7 @@ sisRouter.patch('/disciplinary/:id/resolve', requireRole(['admin']), async (c) =
 
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `UPDATE disciplinaryRecords SET action = ?, resolvedAt = ?, resolvedBy = ? WHERE id = ? AND tenantId = ?`
+    `UPDATE inst_disciplinaryRecords SET action = ?, resolvedAt = ?, resolvedBy = ? WHERE id = ? AND tenantId = ?`
   ).bind(body.resolution, now, resolvedBy, id, tenantId).run();
 
   return c.json({ success: true, resolvedAt: now });

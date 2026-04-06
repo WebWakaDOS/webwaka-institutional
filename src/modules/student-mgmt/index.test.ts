@@ -13,7 +13,7 @@ function makeApp(role = 'admin', userId = 'user-test-123', tenantId = 'tenant-in
     c.set('user', { userId, tenantId, role, permissions: [] });
     await next();
   });
-  app.route('/api/students', studentMgmtRouter);
+  app.route('/api/inst_students', studentMgmtRouter);
   const env = makeEnv(db);
   const req = (method: string, path: string, body?: unknown) => {
     const init: RequestInit = { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer mock' } };
@@ -34,80 +34,80 @@ describe('Student Management', () => {
 
   beforeEach(() => { ctx = makeApp(); });
 
-  it('POST /api/students — creates student and returns 201', async () => {
-    const res = await ctx.req('POST', '/api/students', validStudent);
+  it('POST /api/inst_students — creates student and returns 201', async () => {
+    const res = await ctx.req('POST', '/api/inst_students', validStudent);
     expect(res.status).toBe(201);
     const body = await res.json() as any;
     expect(body.success).toBe(true);
     expect(typeof body.id).toBe('string');
   });
 
-  it('POST /api/students — returns 400 when required fields missing', async () => {
-    const res = await ctx.req('POST', '/api/students', { matricNumber: 'X', ndprConsent: true });
+  it('POST /api/inst_students — returns 400 when required fields missing', async () => {
+    const res = await ctx.req('POST', '/api/inst_students', { matricNumber: 'X', ndprConsent: true });
     expect(res.status).toBe(400);
   });
 
-  it('POST /api/students — rejects missing NDPR consent', async () => {
-    const res = await ctx.req('POST', '/api/students', { ...validStudent, ndprConsent: false });
+  it('POST /api/inst_students — rejects missing NDPR consent', async () => {
+    const res = await ctx.req('POST', '/api/inst_students', { ...validStudent, ndprConsent: false });
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
-  it('POST /api/students — returns 409 on duplicate matric number', async () => {
-    await ctx.req('POST', '/api/students', validStudent);
-    const res = await ctx.req('POST', '/api/students', validStudent);
+  it('POST /api/inst_students — returns 409 on duplicate matric number', async () => {
+    await ctx.req('POST', '/api/inst_students', validStudent);
+    const res = await ctx.req('POST', '/api/inst_students', validStudent);
     expect(res.status).toBe(409);
   });
 
-  it('GET /api/students — returns list of students', async () => {
-    await ctx.req('POST', '/api/students', validStudent);
-    const res = await ctx.req('GET', '/api/students');
+  it('GET /api/inst_students — returns list of inst_students', async () => {
+    await ctx.req('POST', '/api/inst_students', validStudent);
+    const res = await ctx.req('GET', '/api/inst_students');
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(Array.isArray(body.data)).toBe(true);
     expect(body.data.length).toBe(1);
   });
 
-  it('GET /api/students — filters by status query param', async () => {
-    await ctx.req('POST', '/api/students', validStudent);
-    const res = await ctx.req('GET', '/api/students?status=active');
+  it('GET /api/inst_students — filters by status query param', async () => {
+    await ctx.req('POST', '/api/inst_students', validStudent);
+    const res = await ctx.req('GET', '/api/inst_students?status=active');
     expect(res.status).toBe(200);
   });
 
-  it('GET /api/students/:id — returns single student', async () => {
-    const createRes = await ctx.req('POST', '/api/students', validStudent);
+  it('GET /api/inst_students/:id — returns single student', async () => {
+    const createRes = await ctx.req('POST', '/api/inst_students', validStudent);
     const { id } = await createRes.json() as any;
-    const res = await ctx.req('GET', `/api/students/${id}`);
+    const res = await ctx.req('GET', `/api/inst_students/${id}`);
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(body.data.matricNumber).toBe('FCA/2024/001');
   });
 
-  it('GET /api/students/:id — returns 404 for unknown id', async () => {
-    const res = await ctx.req('GET', '/api/students/tenant-inst-123-nonexistent-id');
+  it('GET /api/inst_students/:id — returns 404 for unknown id', async () => {
+    const res = await ctx.req('GET', '/api/inst_students/tenant-inst-123-nonexistent-id');
     expect(res.status).toBe(404);
   });
 
-  it('GET /api/students/:id — student role can only view own record', async () => {
+  it('GET /api/inst_students/:id — student role can only view own record', async () => {
     const ctx2 = makeApp('student', 'other-student', 'tenant-inst-123');
-    const createRes = await ctx.req('POST', '/api/students', validStudent);
+    const createRes = await ctx.req('POST', '/api/inst_students', validStudent);
     const { id } = await createRes.json() as any;
-    const res = await ctx2.req('GET', `/api/students/${id}`);
+    const res = await ctx2.req('GET', `/api/inst_students/${id}`);
     expect(res.status).toBe(403);
   });
 
-  it('PATCH /api/students/:id — updates student fields', async () => {
-    const createRes = await ctx.req('POST', '/api/students', validStudent);
+  it('PATCH /api/inst_students/:id — updates student fields', async () => {
+    const createRes = await ctx.req('POST', '/api/inst_students', validStudent);
     const { id } = await createRes.json() as any;
-    const res = await ctx.req('PATCH', `/api/students/${id}`, { firstName: 'Updated' });
+    const res = await ctx.req('PATCH', `/api/inst_students/${id}`, { firstName: 'Updated' });
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(body.success).toBe(true);
   });
 
-  it('DELETE /api/students/:id — soft deletes (withdrawn)', async () => {
-    const createRes = await ctx.req('POST', '/api/students', validStudent);
+  it('DELETE /api/inst_students/:id — soft deletes (withdrawn)', async () => {
+    const createRes = await ctx.req('POST', '/api/inst_students', validStudent);
     const { id } = await createRes.json() as any;
-    const res = await ctx.req('DELETE', `/api/students/${id}`);
+    const res = await ctx.req('DELETE', `/api/inst_students/${id}`);
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(body.status).toBe('withdrawn');

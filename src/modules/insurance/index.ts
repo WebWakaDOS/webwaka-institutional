@@ -20,7 +20,7 @@ insuranceRouter.post('/', requireRole(['admin', 'doctor', 'nurse']), async (c) =
   const tenantId = c.get('user').tenantId;
   const body = await c.req.json<{
     patientId: string; policyNumber: string; provider?: string;
-    claimType: string; amountKobo: number; documents?: string[]; notes?: string;
+    claimType: string; amountKobo: number; inst_documents?: string[]; notes?: string;
   }>();
 
   if (!body.patientId || !body.policyNumber || !body.claimType || !body.amountKobo) {
@@ -35,13 +35,13 @@ insuranceRouter.post('/', requireRole(['admin', 'doctor', 'nurse']), async (c) =
   const now = new Date().toISOString();
 
   await c.env.DB.prepare(
-    `INSERT INTO insuranceClaims
+    `INSERT INTO inst_insuranceClaims
        (id, tenantId, patientId, policyNumber, provider, claimType, amountKobo,
-        status, submittedAt, referenceNo, documents, notes, createdAt, updatedAt)
+        status, submittedAt, referenceNo, inst_documents, notes, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, 'submitted', ?, ?, ?, ?, ?, ?)`
   ).bind(id, tenantId, body.patientId, body.policyNumber, body.provider ?? null,
     body.claimType, body.amountKobo, now, referenceNo,
-    JSON.stringify(body.documents ?? []), body.notes ?? null, now, now).run();
+    JSON.stringify(body.inst_documents ?? []), body.notes ?? null, now, now).run();
 
   return c.json({ success: true, id, referenceNo }, 201);
 });
@@ -49,7 +49,7 @@ insuranceRouter.post('/', requireRole(['admin', 'doctor', 'nurse']), async (c) =
 insuranceRouter.get('/', requireRole(['admin', 'doctor', 'finance']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { patientId, status, claimType } = c.req.query() as Record<string, string>;
-  let sql = 'SELECT * FROM insuranceClaims WHERE tenantId = ?';
+  let sql = 'SELECT * FROM inst_insuranceClaims WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
   if (patientId)  { sql += ' AND patientId = ?';  args.push(patientId); }
   if (status)     { sql += ' AND status = ?';     args.push(status); }
@@ -63,7 +63,7 @@ insuranceRouter.get('/:id', requireRole(['admin', 'doctor', 'finance']), async (
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const claim = await c.env.DB.prepare(
-    'SELECT * FROM insuranceClaims WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_insuranceClaims WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
   if (!claim) return c.json({ error: 'Insurance claim not found' }, 404);
   return c.json({ data: claim });
@@ -83,7 +83,7 @@ insuranceRouter.patch('/:id/review', requireRole(['admin', 'finance']), async (c
 
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `UPDATE insuranceClaims
+    `UPDATE inst_insuranceClaims
      SET status = ?, approvedKobo = COALESCE(?, approvedKobo),
          notes = COALESCE(?, notes), processedAt = ?, updatedAt = ?
      WHERE id = ? AND tenantId = ?`
@@ -92,13 +92,13 @@ insuranceRouter.patch('/:id/review', requireRole(['admin', 'finance']), async (c
   return c.json({ success: true, status: body.status });
 });
 
-insuranceRouter.post('/:id/documents', requireRole(['admin', 'doctor', 'nurse']), async (c) => {
+insuranceRouter.post('/:id/inst_documents', requireRole(['admin', 'doctor', 'nurse']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
 
   const claim = await c.env.DB.prepare(
-    'SELECT documents FROM insuranceClaims WHERE id = ? AND tenantId = ?'
-  ).bind(id, tenantId).first<{ documents: string }>();
+    'SELECT inst_documents FROM inst_insuranceClaims WHERE id = ? AND tenantId = ?'
+  ).bind(id, tenantId).first<{ inst_documents: string }>();
   if (!claim) return c.json({ error: 'Insurance claim not found' }, 404);
 
   const contentType = c.req.header('Content-Type') ?? 'application/octet-stream';
@@ -112,11 +112,11 @@ insuranceRouter.post('/:id/documents', requireRole(['admin', 'doctor', 'nurse'])
     customMetadata: { tenantId, claimId: id },
   });
 
-  const docs: string[] = JSON.parse(claim.documents || '[]');
+  const docs: string[] = JSON.parse(claim.inst_documents || '[]');
   docs.push(r2Key);
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    'UPDATE insuranceClaims SET documents = ?, updatedAt = ? WHERE id = ? AND tenantId = ?'
+    'UPDATE inst_insuranceClaims SET inst_documents = ?, updatedAt = ? WHERE id = ? AND tenantId = ?'
   ).bind(JSON.stringify(docs), now, id, tenantId).run();
 
   return c.json({ success: true, r2Key });

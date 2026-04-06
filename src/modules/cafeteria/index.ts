@@ -26,14 +26,14 @@ cafeteriaRouter.post('/plans', requireRole(['admin']), async (c) => {
   }
 
   const existing = await c.env.DB.prepare(
-    'SELECT id FROM mealPlans WHERE studentId = ? AND academicYear = ? AND tenantId = ?'
+    'SELECT id FROM inst_mealPlans WHERE studentId = ? AND academicYear = ? AND tenantId = ?'
   ).bind(body.studentId, body.academicYear, tenantId).first();
   if (existing) return c.json({ error: 'Meal plan already exists for this student and year' }, 409);
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO mealPlans
+    `INSERT INTO inst_mealPlans
        (id, tenantId, studentId, plan, dietaryRestrictions, balanceKobo, academicYear, status, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
   ).bind(id, tenantId, body.studentId, body.plan ?? 'standard',
@@ -43,10 +43,10 @@ cafeteriaRouter.post('/plans', requireRole(['admin']), async (c) => {
   return c.json({ success: true, id }, 201);
 });
 
-cafeteriaRouter.get('/plans', requireRole(['admin', 'staff']), async (c) => {
+cafeteriaRouter.get('/plans', requireRole(['admin', 'inst_staff']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { studentId, academicYear } = c.req.query() as Record<string, string>;
-  let sql = 'SELECT * FROM mealPlans WHERE tenantId = ?';
+  let sql = 'SELECT * FROM inst_mealPlans WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
   if (studentId)    { sql += ' AND studentId = ?';    args.push(studentId); }
   if (academicYear) { sql += ' AND academicYear = ?'; args.push(academicYear); }
@@ -55,11 +55,11 @@ cafeteriaRouter.get('/plans', requireRole(['admin', 'staff']), async (c) => {
   return c.json({ data: results });
 });
 
-cafeteriaRouter.get('/plans/:id', requireRole(['admin', 'staff', 'student']), async (c) => {
+cafeteriaRouter.get('/plans/:id', requireRole(['admin', 'inst_staff', 'student']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const plan = await c.env.DB.prepare(
-    'SELECT * FROM mealPlans WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_mealPlans WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
   if (!plan) return c.json({ error: 'Meal plan not found' }, 404);
   return c.json({ data: plan });
@@ -74,14 +74,14 @@ cafeteriaRouter.patch('/plans/:id/topup', requireRole(['admin']), async (c) => {
   }
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    'UPDATE mealPlans SET balanceKobo = balanceKobo + ?, updatedAt = ? WHERE id = ? AND tenantId = ?'
+    'UPDATE inst_mealPlans SET balanceKobo = balanceKobo + ?, updatedAt = ? WHERE id = ? AND tenantId = ?'
   ).bind(body.amountKobo, now, id, tenantId).run();
   return c.json({ success: true });
 });
 
 // ─── Meal Transactions ────────────────────────────────────────────────────────
 
-cafeteriaRouter.post('/plans/:id/transact', requireRole(['admin', 'staff']), async (c) => {
+cafeteriaRouter.post('/plans/:id/transact', requireRole(['admin', 'inst_staff']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const mealPlanId = c.req.param('id');
   const body = await c.req.json<{ item: string; amountKobo: number }>();
@@ -90,7 +90,7 @@ cafeteriaRouter.post('/plans/:id/transact', requireRole(['admin', 'staff']), asy
   }
 
   const plan = await c.env.DB.prepare(
-    'SELECT balanceKobo FROM mealPlans WHERE id = ? AND tenantId = ?'
+    'SELECT balanceKobo FROM inst_mealPlans WHERE id = ? AND tenantId = ?'
   ).bind(mealPlanId, tenantId).first<{ balanceKobo: number }>();
   if (!plan) return c.json({ error: 'Meal plan not found' }, 404);
   if (plan.balanceKobo < body.amountKobo) {
@@ -100,12 +100,12 @@ cafeteriaRouter.post('/plans/:id/transact', requireRole(['admin', 'staff']), asy
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO mealTransactions (id, tenantId, mealPlanId, item, amountKobo, transactedAt, createdAt)
+    `INSERT INTO inst_mealTransactions (id, tenantId, mealPlanId, item, amountKobo, transactedAt, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, tenantId, mealPlanId, body.item, body.amountKobo, now, now).run();
 
   await c.env.DB.prepare(
-    'UPDATE mealPlans SET balanceKobo = balanceKobo - ?, updatedAt = ? WHERE id = ? AND tenantId = ?'
+    'UPDATE inst_mealPlans SET balanceKobo = balanceKobo - ?, updatedAt = ? WHERE id = ? AND tenantId = ?'
   ).bind(body.amountKobo, now, mealPlanId, tenantId).run();
 
   return c.json({ success: true, id, remainingBalanceKobo: plan.balanceKobo - body.amountKobo }, 201);

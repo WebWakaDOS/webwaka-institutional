@@ -12,7 +12,7 @@ import type { Bindings, AppVariables } from '../../core/types';
 
 export const visitorRouter = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
-visitorRouter.post('/', requireRole(['admin', 'staff', 'security']), async (c) => {
+visitorRouter.post('/', requireRole(['admin', 'inst_staff', 'security']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const body = await c.req.json<{
     visitorName: string; phone?: string; host: string; purpose: string; campusId?: string;
@@ -26,7 +26,7 @@ visitorRouter.post('/', requireRole(['admin', 'staff', 'security']), async (c) =
   const badgeCode = `VIS-${now.slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`;
 
   await c.env.DB.prepare(
-    `INSERT INTO visitorLogs
+    `INSERT INTO inst_visitorLogs
        (id, tenantId, visitorName, phone, host, purpose, checkIn, badgeCode, campusId, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, tenantId, body.visitorName, body.phone ?? null, body.host, body.purpose,
@@ -35,10 +35,10 @@ visitorRouter.post('/', requireRole(['admin', 'staff', 'security']), async (c) =
   return c.json({ success: true, id, badgeCode, checkIn: now }, 201);
 });
 
-visitorRouter.get('/', requireRole(['admin', 'staff', 'security']), async (c) => {
+visitorRouter.get('/', requireRole(['admin', 'inst_staff', 'security']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { date, host } = c.req.query() as Record<string, string>;
-  let sql = 'SELECT * FROM visitorLogs WHERE tenantId = ?';
+  let sql = 'SELECT * FROM inst_visitorLogs WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
   if (date)  { sql += ' AND checkIn LIKE ?'; args.push(`${date}%`); }
   if (host)  { sql += ' AND host = ?';       args.push(host); }
@@ -47,19 +47,19 @@ visitorRouter.get('/', requireRole(['admin', 'staff', 'security']), async (c) =>
   return c.json({ data: results });
 });
 
-visitorRouter.patch('/:id/checkout', requireRole(['admin', 'staff', 'security']), async (c) => {
+visitorRouter.patch('/:id/checkout', requireRole(['admin', 'inst_staff', 'security']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const now = new Date().toISOString();
 
   const log = await c.env.DB.prepare(
-    'SELECT checkOut FROM visitorLogs WHERE id = ? AND tenantId = ?'
+    'SELECT checkOut FROM inst_visitorLogs WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first<{ checkOut: string | null }>();
   if (!log) return c.json({ error: 'Visitor log not found' }, 404);
   if (log.checkOut) return c.json({ error: 'Visitor already checked out' }, 409);
 
   await c.env.DB.prepare(
-    'UPDATE visitorLogs SET checkOut = ? WHERE id = ? AND tenantId = ?'
+    'UPDATE inst_visitorLogs SET checkOut = ? WHERE id = ? AND tenantId = ?'
   ).bind(now, id, tenantId).run();
   return c.json({ success: true, checkOut: now });
 });

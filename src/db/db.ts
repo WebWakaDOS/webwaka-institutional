@@ -8,10 +8,10 @@
  * All monetary amounts stored as kobo integers — Invariant 5: Nigeria First
  *
  * Version history:
- *   v1 — students, feeRecords, mutationQueue
- *   v2 — qualificationVerifications
- *   v3 — payrollRuns, payslips, courses, gradeRecords, campuses,
- *         assets, attendanceLogs, incidents, schedules
+ *   v1 — inst_students, inst_feeRecords, mutationQueue
+ *   v2 — inst_qualificationVerifications
+ *   v3 — inst_payrollRuns, inst_payslips, inst_courses, inst_gradeRecords, inst_campuses,
+ *         inst_assets, inst_attendanceLogs, inst_incidents, inst_schedules
  */
 
 import Dexie, { type Table } from 'dexie';
@@ -74,58 +74,58 @@ interface OfflineIncident {
 
 export class InstitutionalOfflineDB extends Dexie {
   // v1
-  students!: Table<Student>;
-  feeRecords!: Table<FeeRecord>;
+  inst_students!: Table<Student>;
+  inst_feeRecords!: Table<FeeRecord>;
   mutationQueue!: Table<MutationQueueEntry>;
 
   // v2
-  qualificationVerifications!: Table<QualificationVerification>;
+  inst_qualificationVerifications!: Table<QualificationVerification>;
 
   // v3 — ERP & operational modules
-  payrollRuns!: Table<PayrollRun>;
-  payslips!: Table<Payslip>;
-  gradeRecords!: Table<GradeRecord>;
-  courses!: Table<OfflineCourse>;
-  campuses!: Table<Campus>;
-  assets!: Table<OfflineAsset>;
-  attendanceLogs!: Table<OfflineAttendanceLog>;
-  incidents!: Table<OfflineIncident>;
-  schedules!: Table<Schedule>;
+  inst_payrollRuns!: Table<PayrollRun>;
+  inst_payslips!: Table<Payslip>;
+  inst_gradeRecords!: Table<GradeRecord>;
+  inst_courses!: Table<OfflineCourse>;
+  inst_campuses!: Table<Campus>;
+  inst_assets!: Table<OfflineAsset>;
+  inst_attendanceLogs!: Table<OfflineAttendanceLog>;
+  inst_incidents!: Table<OfflineIncident>;
+  inst_schedules!: Table<Schedule>;
 
   constructor() {
     super('webwaka-institutional');
 
     this.version(1).stores({
-      students: 'id, tenantId, matricNumber, status, programmeId, level',
-      feeRecords: 'id, tenantId, studentId, feeType, status, academicYear',
+      inst_students: 'id, tenantId, matricNumber, status, programmeId, level',
+      inst_feeRecords: 'id, tenantId, studentId, feeType, status, academicYear',
       mutationQueue: '++id, tenantId, createdAt',
     });
 
     this.version(2).stores({
-      students: 'id, tenantId, matricNumber, status, programmeId, level',
-      feeRecords: 'id, tenantId, studentId, feeType, status, academicYear',
-      qualificationVerifications: 'id, tenantId, studentId, verificationStatus',
+      inst_students: 'id, tenantId, matricNumber, status, programmeId, level',
+      inst_feeRecords: 'id, tenantId, studentId, feeType, status, academicYear',
+      inst_qualificationVerifications: 'id, tenantId, studentId, verificationStatus',
       mutationQueue: '++id, tenantId, createdAt',
     });
 
     this.version(3).stores({
-      students: 'id, tenantId, matricNumber, status, programmeId, level',
-      feeRecords: 'id, tenantId, studentId, feeType, status, academicYear',
-      qualificationVerifications: 'id, tenantId, studentId, verificationStatus',
+      inst_students: 'id, tenantId, matricNumber, status, programmeId, level',
+      inst_feeRecords: 'id, tenantId, studentId, feeType, status, academicYear',
+      inst_qualificationVerifications: 'id, tenantId, studentId, verificationStatus',
       mutationQueue: '++id, tenantId, createdAt',
       // Phase 1 — ERP
-      payrollRuns: 'id, tenantId, period, status',
-      payslips: 'id, tenantId, payrollRunId, staffId, status',
+      inst_payrollRuns: 'id, tenantId, period, status',
+      inst_payslips: 'id, tenantId, payrollRunId, staffId, status',
       // Phase 2 — Education
-      gradeRecords: 'id, tenantId, studentId, academicYear, semester',
-      courses: 'id, tenantId, code, instructorId, status',
+      inst_gradeRecords: 'id, tenantId, studentId, academicYear, semester',
+      inst_courses: 'id, tenantId, code, instructorId, status',
       // Campus & Operational
-      campuses: 'id, tenantId, status',
-      assets: 'id, tenantId, category, status',
-      attendanceLogs: 'id, tenantId, memberId, timestamp',
-      incidents: 'id, tenantId, type, severity, status',
+      inst_campuses: 'id, tenantId, status',
+      inst_assets: 'id, tenantId, category, status',
+      inst_attendanceLogs: 'id, tenantId, memberId, timestamp',
+      inst_incidents: 'id, tenantId, type, severity, status',
       // Phase 3 — AI
-      schedules: 'id, tenantId, type, status',
+      inst_schedules: 'id, tenantId, type, status',
     });
   }
 }

@@ -160,18 +160,18 @@ describe('SIS — Transcript', () => {
   let ctx: ReturnType<typeof makeApp>;
   beforeEach(() => { ctx = makeApp(); });
 
-  it('GET /api/sis/students/:studentId/transcript — returns transcript', async () => {
+  it('GET /api/sis/inst_students/:studentId/transcript — returns transcript', async () => {
     await ctx.req('POST', '/api/sis/grades', validGrade);
-    const res = await ctx.req('GET', '/api/sis/students/student-uuid-001/transcript');
+    const res = await ctx.req('GET', '/api/sis/inst_students/student-uuid-001/transcript');
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(typeof body.data.cgpa).toBe('number');
   });
 
   // Student can only view their own transcript
-  it('GET /api/sis/students/:studentId/transcript — student blocked from other student', async () => {
+  it('GET /api/sis/inst_students/:studentId/transcript — student blocked from other student', async () => {
     const studentCtx = makeApp('student', 'student-user-001', 'tenant-inst-123');
-    const res = await studentCtx.req('GET', '/api/sis/students/other-student-id/transcript');
+    const res = await studentCtx.req('GET', '/api/sis/inst_students/other-student-id/transcript');
     expect(res.status).toBe(403);
   });
 });

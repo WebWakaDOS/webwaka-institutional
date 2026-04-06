@@ -1,7 +1,7 @@
 /**
  * Staff Management — WebWaka Institutional Suite
  *
- * Full staff lifecycle: registration (with NDPR consent), profile + salary
+ * Full inst_staff lifecycle: registration (with NDPR consent), profile + salary
  * management, and deactivation.
  *
  * Invariant 1: Build Once Use Infinitely — all auth from @webwaka/core
@@ -12,11 +12,11 @@
  * WI-010: Full profile including salary columns required by the payroll engine.
  *
  * Routes:
- *   POST  /api/staff        — Register staff member (requires NDPR consent)
- *   GET   /api/staff        — List staff (admin)
- *   GET   /api/staff/:id    — Get staff member (self, admin)
- *   PATCH /api/staff/:id    — Update profile / salary (admin)
- *   DELETE /api/staff/:id   — Deactivate staff (admin)
+ *   POST  /api/inst_staff        — Register inst_staff member (requires NDPR consent)
+ *   GET   /api/inst_staff        — List inst_staff (admin)
+ *   GET   /api/inst_staff/:id    — Get inst_staff member (self, admin)
+ *   PATCH /api/inst_staff/:id    — Update profile / salary (admin)
+ *   DELETE /api/inst_staff/:id   — Deactivate inst_staff (admin)
  */
 
 import { Hono } from 'hono';
@@ -26,7 +26,7 @@ import type { Bindings, AppVariables } from '../../core/types';
 
 export const staffMgmtRouter = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
-// ─── POST /api/staff ──────────────────────────────────────────────────────────
+// ─── POST /api/inst_staff ──────────────────────────────────────────────────────────
 
 staffMgmtRouter.post('/', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
@@ -55,17 +55,17 @@ staffMgmtRouter.post('/', requireRole(['admin']), async (c) => {
   assertNdprConsent(body);
 
   const existing = await c.env.DB.prepare(
-    'SELECT id FROM staff WHERE staffId = ? AND tenantId = ?'
+    'SELECT id FROM inst_staff WHERE staffId = ? AND tenantId = ?'
   ).bind(body.staffId, tenantId).first();
   if (existing) {
-    return c.json({ error: 'A staff member with this staffId already exists' }, 409);
+    return c.json({ error: 'A inst_staff member with this staffId already exists' }, 409);
   }
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
 
   await c.env.DB.prepare(
-    `INSERT INTO staff
+    `INSERT INTO inst_staff
        (id, tenantId, staffId, firstName, lastName, email, phone, department, role,
         grossSalaryKobo, pensionDeductionKobo, otherDeductionsKobo, status, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -82,12 +82,12 @@ staffMgmtRouter.post('/', requireRole(['admin']), async (c) => {
   // WI-003: Record consent to the NDPR audit log
   const ip = c.req.header('CF-Connecting-IP') ?? c.req.header('x-forwarded-for') ?? null;
   const ua = c.req.header('User-Agent') ?? null;
-  await recordNdprConsent(c.env.DB, id, 'staff', ip, ua).catch(() => {});
+  await recordNdprConsent(c.env.DB, id, 'inst_staff', ip, ua).catch(() => {});
 
   return c.json({ success: true, id }, 201);
 });
 
-// ─── GET /api/staff ───────────────────────────────────────────────────────────
+// ─── GET /api/inst_staff ───────────────────────────────────────────────────────────
 
 staffMgmtRouter.get('/', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
@@ -96,7 +96,7 @@ staffMgmtRouter.get('/', requireRole(['admin']), async (c) => {
   let sql = `SELECT id, tenantId, staffId, firstName, lastName, email, phone,
                     department, role, grossSalaryKobo, pensionDeductionKobo,
                     otherDeductionsKobo, status, createdAt, updatedAt
-             FROM staff WHERE tenantId = ?`;
+             FROM inst_staff WHERE tenantId = ?`;
   const args: unknown[] = [tenantId];
   if (status) { sql += ' AND status = ?'; args.push(status); }
   if (department) { sql += ' AND department = ?'; args.push(department); }
@@ -107,15 +107,15 @@ staffMgmtRouter.get('/', requireRole(['admin']), async (c) => {
   return c.json({ data: results });
 });
 
-// ─── GET /api/staff/:id ───────────────────────────────────────────────────────
+// ─── GET /api/inst_staff/:id ───────────────────────────────────────────────────────
 
-staffMgmtRouter.get('/:id', requireRole(['admin', 'staff']), async (c) => {
+staffMgmtRouter.get('/:id', requireRole(['admin', 'inst_staff']), async (c) => {
   const user = c.get('user');
   const tenantId = user.tenantId;
   const id = c.req.param('id');
 
   // Staff may only view their own record
-  if (user.role === 'staff' && id !== user.userId) {
+  if (user.role === 'inst_staff' && id !== user.userId) {
     return c.json({ error: 'Forbidden' }, 403);
   }
 
@@ -123,14 +123,14 @@ staffMgmtRouter.get('/:id', requireRole(['admin', 'staff']), async (c) => {
     `SELECT id, tenantId, staffId, firstName, lastName, email, phone,
             department, role, grossSalaryKobo, pensionDeductionKobo,
             otherDeductionsKobo, status, createdAt, updatedAt
-     FROM staff WHERE id = ? AND tenantId = ?`
+     FROM inst_staff WHERE id = ? AND tenantId = ?`
   ).bind(id, tenantId).first();
 
   if (!member) return c.json({ error: 'Staff member not found' }, 404);
   return c.json({ data: member });
 });
 
-// ─── PATCH /api/staff/:id ─────────────────────────────────────────────────────
+// ─── PATCH /api/inst_staff/:id ─────────────────────────────────────────────────────
 
 staffMgmtRouter.patch('/:id', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
@@ -150,7 +150,7 @@ staffMgmtRouter.patch('/:id', requireRole(['admin']), async (c) => {
 
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `UPDATE staff
+    `UPDATE inst_staff
      SET firstName            = COALESCE(?, firstName),
          lastName             = COALESCE(?, lastName),
          email                = COALESCE(?, email),
@@ -175,7 +175,7 @@ staffMgmtRouter.patch('/:id', requireRole(['admin']), async (c) => {
   return c.json({ success: true });
 });
 
-// ─── DELETE /api/staff/:id ────────────────────────────────────────────────────
+// ─── DELETE /api/inst_staff/:id ────────────────────────────────────────────────────
 // Soft delete — sets status to 'inactive' to preserve payslip history.
 
 staffMgmtRouter.delete('/:id', requireRole(['admin']), async (c) => {
@@ -184,7 +184,7 @@ staffMgmtRouter.delete('/:id', requireRole(['admin']), async (c) => {
   const now = new Date().toISOString();
 
   await c.env.DB.prepare(
-    `UPDATE staff SET status = 'inactive', updatedAt = ? WHERE id = ? AND tenantId = ?`
+    `UPDATE inst_staff SET status = 'inactive', updatedAt = ? WHERE id = ? AND tenantId = ?`
   ).bind(now, id, tenantId).run();
 
   return c.json({ success: true, status: 'inactive' });

@@ -51,7 +51,7 @@ fhirRouter.get(
   async (c) => {
     const tenantId = c.get('user').tenantId;
     const { results } = await c.env.DB.prepare(
-      'SELECT data FROM fhirResources WHERE tenantId = ? ORDER BY resourceType, updatedAt DESC'
+      'SELECT data FROM inst_fhirResources WHERE tenantId = ? ORDER BY resourceType, updatedAt DESC'
     ).bind(tenantId).all<{ data: string }>();
 
     const ndjson = results.map((r) => r.data).join('\n');
@@ -91,7 +91,7 @@ fhirRouter.post(
     data.meta = { versionId: '1', lastUpdated: now };
 
     await c.env.DB.prepare(
-      `INSERT INTO fhirResources
+      `INSERT INTO inst_fhirResources
          (id, tenantId, resourceType, resourceId, version, data, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     ).bind(internalId, tenantId, resourceType, resourceId, 1, JSON.stringify(data), now, now).run();
@@ -115,7 +115,7 @@ fhirRouter.get(
     }
 
     const { results } = await c.env.DB.prepare(
-      'SELECT data FROM fhirResources WHERE tenantId = ? AND resourceType = ? ORDER BY updatedAt DESC LIMIT 100'
+      'SELECT data FROM inst_fhirResources WHERE tenantId = ? AND resourceType = ? ORDER BY updatedAt DESC LIMIT 100'
     ).bind(tenantId, resourceType).all<{ data: string }>();
 
     const entries = results
@@ -145,7 +145,7 @@ fhirRouter.get(
     const resourceId = c.req.param('id');
 
     const record = await c.env.DB.prepare(
-      'SELECT data FROM fhirResources WHERE tenantId = ? AND resourceType = ? AND resourceId = ?'
+      'SELECT data FROM inst_fhirResources WHERE tenantId = ? AND resourceType = ? AND resourceId = ?'
     ).bind(tenantId, resourceType, resourceId).first<{ data: string }>();
 
     if (!record) {
@@ -168,7 +168,7 @@ fhirRouter.put(
     const resourceId = c.req.param('id');
 
     const existing = await c.env.DB.prepare(
-      'SELECT id, version FROM fhirResources WHERE tenantId = ? AND resourceType = ? AND resourceId = ?'
+      'SELECT id, version FROM inst_fhirResources WHERE tenantId = ? AND resourceType = ? AND resourceId = ?'
     ).bind(tenantId, resourceType, resourceId).first<{ id: string; version: number }>();
 
     if (!existing) {
@@ -183,7 +183,7 @@ fhirRouter.put(
     data.meta = { versionId: String(newVersion), lastUpdated: now };
 
     await c.env.DB.prepare(
-      'UPDATE fhirResources SET data = ?, version = ?, updatedAt = ? WHERE id = ? AND tenantId = ?'
+      'UPDATE inst_fhirResources SET data = ?, version = ?, updatedAt = ? WHERE id = ? AND tenantId = ?'
     ).bind(JSON.stringify(data), newVersion, now, existing.id, tenantId).run();
 
     return c.json(data);
@@ -201,7 +201,7 @@ fhirRouter.delete(
     const resourceId = c.req.param('id');
 
     const existing = await c.env.DB.prepare(
-      'SELECT id FROM fhirResources WHERE tenantId = ? AND resourceType = ? AND resourceId = ?'
+      'SELECT id FROM inst_fhirResources WHERE tenantId = ? AND resourceType = ? AND resourceId = ?'
     ).bind(tenantId, resourceType, resourceId).first<{ id: string }>();
 
     if (!existing) {
@@ -211,7 +211,7 @@ fhirRouter.delete(
 
     const now = new Date().toISOString();
     await c.env.DB.prepare(
-      `UPDATE fhirResources
+      `UPDATE inst_fhirResources
        SET data = json_patch(data, ?), updatedAt = ?
        WHERE id = ? AND tenantId = ?`
     ).bind(`{"meta":{"deleted":true,"lastUpdated":"${now}"}}`, now, existing.id, tenantId).run();

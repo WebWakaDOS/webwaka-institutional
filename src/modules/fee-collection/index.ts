@@ -50,7 +50,7 @@ feeCollectionRouter.post('/', requireRole(['admin', 'accountant']), async (c) =>
   const now = new Date().toISOString();
 
   await c.env.DB.prepare(
-    `INSERT INTO feeRecords
+    `INSERT INTO inst_feeRecords
        (id, tenantId, studentId, feeType, amountKobo, paidKobo, balanceKobo,
         status, academicYear, semester, dueDate, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?)`
@@ -71,7 +71,7 @@ feeCollectionRouter.get('/', requireRole(['admin', 'accountant']), async (c) => 
   const tenantId = c.get('user').tenantId;
   const { studentId, status, academicYear } = c.req.query() as Record<string, string>;
 
-  let sql = 'SELECT * FROM feeRecords WHERE tenantId = ?';
+  let sql = 'SELECT * FROM inst_feeRecords WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
   if (studentId) { sql += ' AND studentId = ?'; args.push(studentId); }
   if (status) { sql += ' AND status = ?'; args.push(status); }
@@ -89,7 +89,7 @@ feeCollectionRouter.get('/:id', requireRole(['admin', 'accountant', 'student']),
   const id = c.req.param('id');
 
   const record = await c.env.DB.prepare(
-    'SELECT * FROM feeRecords WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_feeRecords WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
 
   if (!record) return c.json({ error: 'Fee record not found' }, 404);
@@ -115,7 +115,7 @@ feeCollectionRouter.patch('/:id/pay', requireRole(['admin', 'accountant']), asyn
   }
 
   const fee = await c.env.DB.prepare(
-    'SELECT * FROM feeRecords WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_feeRecords WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first<{
     id: string; tenantId: string; studentId: string; feeType: string;
     amountKobo: number; paidKobo: number; balanceKobo: number;
@@ -137,7 +137,7 @@ feeCollectionRouter.patch('/:id/pay', requireRole(['admin', 'accountant']), asyn
   const now = new Date().toISOString();
 
   await c.env.DB.prepare(
-    `UPDATE feeRecords
+    `UPDATE inst_feeRecords
      SET paidKobo = ?, balanceKobo = ?, status = ?, updatedAt = ?
      WHERE id = ? AND tenantId = ?`
   ).bind(newPaid, newBalance, newStatus, now, id, tenantId).run();

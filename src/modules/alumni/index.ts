@@ -1,7 +1,7 @@
 /**
  * Alumni / Donor Portal — WebWaka Institutional Suite
  *
- * Manage fundraising campaigns, alumni engagement, and donation tracking.
+ * Manage fundraising campaigns, inst_alumni engagement, and donation tracking.
  *
  * Invariant 2: tenantId always from JWT.
  * Invariant 5: all amounts in kobo.
@@ -27,7 +27,7 @@ alumniRouter.post('/', requireRole(['admin']), async (c) => {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO alumni
+    `INSERT INTO inst_alumni
        (id, tenantId, studentId, firstName, lastName, graduationYear, programme, currentOrg, email, phone, status, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
   ).bind(id, tenantId, body.studentId ?? null, body.firstName, body.lastName,
@@ -39,7 +39,7 @@ alumniRouter.post('/', requireRole(['admin']), async (c) => {
 alumniRouter.get('/', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { graduationYear } = c.req.query() as Record<string, string>;
-  let sql = 'SELECT * FROM alumni WHERE tenantId = ?';
+  let sql = 'SELECT * FROM inst_alumni WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
   if (graduationYear) { sql += ' AND graduationYear = ?'; args.push(graduationYear); }
   sql += ' ORDER BY lastName ASC';
@@ -61,7 +61,7 @@ alumniRouter.post('/campaigns', requireRole(['admin']), async (c) => {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO donationCampaigns
+    `INSERT INTO inst_donationCampaigns
        (id, tenantId, title, description, targetKobo, currentKobo, startDate, endDate, status, createdBy, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, 0, ?, ?, 'active', ?, ?, ?)`
   ).bind(id, tenantId, body.title, body.description ?? null, body.targetKobo,
@@ -69,17 +69,17 @@ alumniRouter.post('/campaigns', requireRole(['admin']), async (c) => {
   return c.json({ success: true, id }, 201);
 });
 
-alumniRouter.get('/campaigns', requireRole(['admin', 'alumni']), async (c) => {
+alumniRouter.get('/campaigns', requireRole(['admin', 'inst_alumni']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM donationCampaigns WHERE tenantId = ? ORDER BY startDate DESC'
+    'SELECT * FROM inst_donationCampaigns WHERE tenantId = ? ORDER BY startDate DESC'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
 // ─── Donations ────────────────────────────────────────────────────────────────
 
-alumniRouter.post('/campaigns/:campaignId/donate', requireRole(['admin', 'alumni']), async (c) => {
+alumniRouter.post('/campaigns/:campaignId/donate', requireRole(['admin', 'inst_alumni']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const campaignId = c.req.param('campaignId');
   const body = await c.req.json<{
@@ -91,15 +91,15 @@ alumniRouter.post('/campaigns/:campaignId/donate', requireRole(['admin', 'alumni
   }
 
   const campaign = await c.env.DB.prepare(
-    'SELECT id, status FROM donationCampaigns WHERE id = ? AND tenantId = ?'
+    'SELECT id, status FROM inst_donationCampaigns WHERE id = ? AND tenantId = ?'
   ).bind(campaignId, tenantId).first<{ id: string; status: string }>();
   if (!campaign) return c.json({ error: 'Campaign not found' }, 404);
-  if (campaign.status !== 'active') return c.json({ error: 'Campaign is not accepting donations' }, 409);
+  if (campaign.status !== 'active') return c.json({ error: 'Campaign is not accepting inst_donations' }, 409);
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO donations
+    `INSERT INTO inst_donations
        (id, tenantId, alumniId, campaignId, amountKobo, transactionRef, donorName, donorEmail, donatedAt, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, tenantId, body.alumniId ?? null, campaignId, body.amountKobo,
@@ -107,7 +107,7 @@ alumniRouter.post('/campaigns/:campaignId/donate', requireRole(['admin', 'alumni
 
   // Update campaign total
   await c.env.DB.prepare(
-    `UPDATE donationCampaigns SET currentKobo = currentKobo + ?, updatedAt = ? WHERE id = ? AND tenantId = ?`
+    `UPDATE inst_donationCampaigns SET currentKobo = currentKobo + ?, updatedAt = ? WHERE id = ? AND tenantId = ?`
   ).bind(body.amountKobo, now, campaignId, tenantId).run();
 
   // WI-009: Emit central-mgmt event so the immutable financial ledger is updated
@@ -125,11 +125,11 @@ alumniRouter.post('/campaigns/:campaignId/donate', requireRole(['admin', 'alumni
   return c.json({ success: true, id, amountKobo: body.amountKobo, donationEvent }, 201);
 });
 
-alumniRouter.get('/campaigns/:campaignId/donations', requireRole(['admin']), async (c) => {
+alumniRouter.get('/campaigns/:campaignId/inst_donations', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const campaignId = c.req.param('campaignId');
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM donations WHERE tenantId = ? AND campaignId = ? ORDER BY donatedAt DESC'
+    'SELECT * FROM inst_donations WHERE tenantId = ? AND campaignId = ? ORDER BY donatedAt DESC'
   ).bind(tenantId, campaignId).all();
   return c.json({ data: results });
 });

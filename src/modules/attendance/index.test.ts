@@ -78,7 +78,7 @@ describe('Attendance Summary', () => {
 
   it('GET /api/attendance/summary — with memberType filter', async () => {
     const today = new Date().toISOString().slice(0, 10);
-    const res = await ctx.req('GET', `/api/attendance/summary?date=${today}&memberType=staff`);
+    const res = await ctx.req('GET', `/api/attendance/summary?date=${today}&memberType=inst_staff`);
     expect(res.status).toBe(200);
   });
 });

@@ -7,7 +7,7 @@
  *   3. POST /api/payroll/runs/:id/process — full calculation & payout event emission
  *   4. RBAC — manage:payroll permission enforcement
  *   5. Status-machine guard — cannot re-process a completed run
- *   6. Edge cases — no staff, zero-salary rows skipped
+ *   6. Edge cases — no inst_staff, zero-salary rows skipped
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -214,12 +214,12 @@ describe('POST /api/payroll/runs — create payroll run', () => {
 describe('POST /api/payroll/runs/:id/process — payroll calculation engine (QA-INS-1)', () => {
   beforeEach(() => { vi.restoreAllMocks(); });
 
-  it('processes active staff, calculates net pay, and emits fintech.payout.requested events', async () => {
+  it('processes active inst_staff, calculates net pay, and emits fintech.payout.requested events', async () => {
     const { app, db, env } = makeApp();
 
-    // Seed one active staff member directly into the stub
+    // Seed one active inst_staff member directly into the stub
     db._rows.push({
-      id: 'staff-abc-001',
+      id: 'inst_staff-abc-001',
       tenantId: 'tenant-inst-123',
       grossSalaryKobo: 5_000_000,    // NGN 50,000/month
       pensionDeductionKobo: 400_000, // NGN 4,000/month
@@ -261,7 +261,7 @@ describe('POST /api/payroll/runs/:id/process — payroll calculation engine (QA-
     const { app, db, env } = makeApp();
 
     db._rows.push({
-      id: 'staff-paye-002',
+      id: 'inst_staff-paye-002',
       tenantId: 'tenant-inst-123',
       grossSalaryKobo: 5_000_000,    // NGN 50,000/month
       pensionDeductionKobo: 400_000,
@@ -288,13 +288,13 @@ describe('POST /api/payroll/runs/:id/process — payroll calculation engine (QA-
     expect(body.payoutEvents[0]!.amountKobo).toBe(expectedNet);
   });
 
-  it('emits one fintech.payout.requested event per active staff member (QA-INS-1)', async () => {
+  it('emits one fintech.payout.requested event per active inst_staff member (QA-INS-1)', async () => {
     const { app, db, env } = makeApp();
 
-    // Two staff members
+    // Two inst_staff members
     db._rows.push(
-      { id: 'staff-m-001', tenantId: 'tenant-inst-123', grossSalaryKobo: 3_000_000, pensionDeductionKobo: 0, otherDeductionsKobo: 0, status: 'active' },
-      { id: 'staff-m-002', tenantId: 'tenant-inst-123', grossSalaryKobo: 8_000_000, pensionDeductionKobo: 640_000, otherDeductionsKobo: 0, status: 'active' }
+      { id: 'inst_staff-m-001', tenantId: 'tenant-inst-123', grossSalaryKobo: 3_000_000, pensionDeductionKobo: 0, otherDeductionsKobo: 0, status: 'active' },
+      { id: 'inst_staff-m-002', tenantId: 'tenant-inst-123', grossSalaryKobo: 8_000_000, pensionDeductionKobo: 640_000, otherDeductionsKobo: 0, status: 'active' }
     );
 
     const createRes = await makeRequest(app, env, 'POST', '/api/payroll/runs', { period: '2025-11' });
@@ -315,14 +315,14 @@ describe('POST /api/payroll/runs/:id/process — payroll calculation engine (QA-
     }
     // Staff IDs must be correctly propagated
     const staffIds = body.payoutEvents.map((e) => e.staffId).sort();
-    expect(staffIds).toEqual(['staff-m-001', 'staff-m-002'].sort());
+    expect(staffIds).toEqual(['inst_staff-m-001', 'inst_staff-m-002'].sort());
   });
 
   it('marks the run as completed after processing and updates totals in D1', async () => {
     const { app, db, env } = makeApp();
 
     db._rows.push({
-      id: 'staff-totals-001',
+      id: 'inst_staff-totals-001',
       tenantId: 'tenant-inst-123',
       grossSalaryKobo: 10_000_000,
       pensionDeductionKobo: 800_000,
@@ -342,21 +342,21 @@ describe('POST /api/payroll/runs/:id/process — payroll calculation engine (QA-
     expect(runRow!.runAt).toBeTruthy();
   });
 
-  it('creates one payslip row per staff member in D1', async () => {
+  it('creates one payslip row per inst_staff member in D1', async () => {
     const { app, db, env } = makeApp();
 
     db._rows.push(
-      { id: 'staff-p-001', tenantId: 'tenant-inst-123', grossSalaryKobo: 4_000_000, pensionDeductionKobo: 0, otherDeductionsKobo: 0, status: 'active' },
-      { id: 'staff-p-002', tenantId: 'tenant-inst-123', grossSalaryKobo: 6_000_000, pensionDeductionKobo: 480_000, otherDeductionsKobo: 0, status: 'active' }
+      { id: 'inst_staff-p-001', tenantId: 'tenant-inst-123', grossSalaryKobo: 4_000_000, pensionDeductionKobo: 0, otherDeductionsKobo: 0, status: 'active' },
+      { id: 'inst_staff-p-002', tenantId: 'tenant-inst-123', grossSalaryKobo: 6_000_000, pensionDeductionKobo: 480_000, otherDeductionsKobo: 0, status: 'active' }
     );
 
     const createRes = await makeRequest(app, env, 'POST', '/api/payroll/runs', { period: '2026-01' });
     const { id: runId } = await createRes.json() as { id: string };
     await makeRequest(app, env, 'POST', `/api/payroll/runs/${runId}/process`);
 
-    const payslips = db._rows.filter((r) => r.payrollRunId === runId);
-    expect(payslips).toHaveLength(2);
-    for (const slip of payslips) {
+    const inst_payslips = db._rows.filter((r) => r.payrollRunId === runId);
+    expect(inst_payslips).toHaveLength(2);
+    for (const slip of inst_payslips) {
       expect(slip.status).toBe('pending');
       expect(slip.tenantId).toBe('tenant-inst-123');
       expect(typeof slip.netKobo).toBe('number');
@@ -364,12 +364,12 @@ describe('POST /api/payroll/runs/:id/process — payroll calculation engine (QA-
     }
   });
 
-  it('skips staff rows that have no grossSalaryKobo (zero-salary guard)', async () => {
+  it('skips inst_staff rows that have no grossSalaryKobo (zero-salary guard)', async () => {
     const { app, db, env } = makeApp();
 
-    // One valid staff + one row with no salary (simulates a non-staff row mixed in by all())
+    // One valid inst_staff + one row with no salary (simulates a non-inst_staff row mixed in by all())
     db._rows.push(
-      { id: 'staff-valid-001', tenantId: 'tenant-inst-123', grossSalaryKobo: 5_000_000, pensionDeductionKobo: 0, otherDeductionsKobo: 0, status: 'active' },
+      { id: 'inst_staff-valid-001', tenantId: 'tenant-inst-123', grossSalaryKobo: 5_000_000, pensionDeductionKobo: 0, otherDeductionsKobo: 0, status: 'active' },
       { id: 'no-salary-row',   tenantId: 'tenant-inst-123', grossSalaryKobo: 0,          pensionDeductionKobo: 0, otherDeductionsKobo: 0, status: 'active' }
     );
 
@@ -378,7 +378,7 @@ describe('POST /api/payroll/runs/:id/process — payroll calculation engine (QA-
     const res = await makeRequest(app, env, 'POST', `/api/payroll/runs/${runId}/process`);
     const body = await res.json() as { staffProcessed: number; payoutEvents: unknown[] };
 
-    // Only the valid staff member should be processed
+    // Only the valid inst_staff member should be processed
     expect(body.staffProcessed).toBe(1);
     expect(body.payoutEvents).toHaveLength(1);
   });
@@ -387,7 +387,7 @@ describe('POST /api/payroll/runs/:id/process — payroll calculation engine (QA-
     const { app, db, env } = makeApp();
 
     db._rows.push({
-      id: 'staff-dup-001',
+      id: 'inst_staff-dup-001',
       tenantId: 'tenant-inst-123',
       grossSalaryKobo: 5_000_000,
       pensionDeductionKobo: 0,
@@ -418,9 +418,9 @@ describe('POST /api/payroll/runs/:id/process — payroll calculation engine (QA-
     expect(res.status).toBe(403);
   });
 
-  it('handles zero active staff gracefully (empty payroll run)', async () => {
+  it('handles zero active inst_staff gracefully (empty payroll run)', async () => {
     const { app, env } = makeApp();
-    // No staff seeded — expect success with 0 processed
+    // No inst_staff seeded — expect success with 0 processed
     const createRes = await makeRequest(app, env, 'POST', '/api/payroll/runs', { period: '2026-04' });
     const { id: runId } = await createRes.json() as { id: string };
     const res = await makeRequest(app, env, 'POST', `/api/payroll/runs/${runId}/process`);

@@ -12,7 +12,7 @@ import type { Bindings, AppVariables } from '../../core/types';
 
 export const attendanceRouter = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
-attendanceRouter.post('/', requireRole(['admin', 'staff', 'security', 'device']), async (c) => {
+attendanceRouter.post('/', requireRole(['admin', 'inst_staff', 'security', 'device']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const body = await c.req.json<{
     memberId: string; memberType?: string; method?: string;
@@ -23,7 +23,7 @@ attendanceRouter.post('/', requireRole(['admin', 'staff', 'security', 'device'])
   const id = crypto.randomUUID();
   const now = body.timestamp ?? new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO attendanceLogs
+    `INSERT INTO inst_attendanceLogs
        (id, tenantId, memberId, memberType, timestamp, method, status, campusId, deviceId, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, tenantId, body.memberId, body.memberType ?? 'student',
@@ -33,10 +33,10 @@ attendanceRouter.post('/', requireRole(['admin', 'staff', 'security', 'device'])
   return c.json({ success: true, id, timestamp: now }, 201);
 });
 
-attendanceRouter.get('/', requireRole(['admin', 'teacher', 'staff']), async (c) => {
+attendanceRouter.get('/', requireRole(['admin', 'teacher', 'inst_staff']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { memberId, date, campusId, memberType } = c.req.query() as Record<string, string>;
-  let sql = 'SELECT * FROM attendanceLogs WHERE tenantId = ?';
+  let sql = 'SELECT * FROM inst_attendanceLogs WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
   if (memberId)   { sql += ' AND memberId = ?';         args.push(memberId); }
   if (memberType) { sql += ' AND memberType = ?';       args.push(memberType); }
@@ -59,7 +59,7 @@ attendanceRouter.get('/summary', requireRole(['admin', 'teacher']), async (c) =>
 
   const { results } = await c.env.DB.prepare(
     `SELECT status, COUNT(*) as count
-     FROM attendanceLogs WHERE tenantId = ? AND timestamp LIKE ? ${memberTypeFilter}
+     FROM inst_attendanceLogs WHERE tenantId = ? AND timestamp LIKE ? ${memberTypeFilter}
      GROUP BY status`
   ).bind(...args).all<{ status: string; count: number }>();
 

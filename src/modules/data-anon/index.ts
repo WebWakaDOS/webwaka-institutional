@@ -28,13 +28,13 @@ export const dataAnonRouter = new Hono<{ Bindings: Bindings; Variables: AppVaria
 
 // Tables we permit anonymization of and their PII columns
 const ANONYMIZABLE_TABLES: Record<string, string[]> = {
-  students:         ['firstName', 'lastName', 'email', 'phone'],
-  staff:            ['firstName', 'lastName', 'email', 'phone', 'nationalId'],
-  patientRecords:   ['dob', 'allergies'],
-  alumni:           ['firstName', 'lastName', 'email', 'phone', 'currentOrg'],
-  donations:        ['donorName', 'donorEmail'],
-  visitorLogs:      ['visitorName', 'phone'],
-  insuranceClaims:  ['policyNumber'],
+  inst_students:         ['firstName', 'lastName', 'email', 'phone'],
+  inst_staff:            ['firstName', 'lastName', 'email', 'phone', 'nationalId'],
+  inst_patientRecords:   ['dob', 'allergies'],
+  inst_alumni:           ['firstName', 'lastName', 'email', 'phone', 'currentOrg'],
+  inst_donations:        ['donorName', 'donorEmail'],
+  inst_visitorLogs:      ['visitorName', 'phone'],
+  inst_insuranceClaims:  ['policyNumber'],
 };
 
 const PII_FIELDS = new Set([
@@ -86,7 +86,7 @@ dataAnonRouter.post('/jobs', requireRole(['admin']), async (c) => {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO anonymizationJobs
+    `INSERT INTO inst_anonymizationJobs
        (id, tenantId, sourceTable, conditions, fieldsToStrip, status, processedCount, createdBy, createdAt)
      VALUES (?, ?, ?, ?, ?, 'pending', 0, ?, ?)`
   ).bind(id, tenantId, body.sourceTable,
@@ -100,7 +100,7 @@ dataAnonRouter.post('/jobs', requireRole(['admin']), async (c) => {
 dataAnonRouter.get('/jobs', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM anonymizationJobs WHERE tenantId = ? ORDER BY createdAt DESC'
+    'SELECT * FROM inst_anonymizationJobs WHERE tenantId = ? ORDER BY createdAt DESC'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
@@ -110,7 +110,7 @@ dataAnonRouter.get('/jobs/:id', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const job = await c.env.DB.prepare(
-    'SELECT * FROM anonymizationJobs WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_anonymizationJobs WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
   if (!job) return c.json({ error: 'Anonymization job not found' }, 404);
   return c.json({ data: job });
@@ -122,7 +122,7 @@ dataAnonRouter.post('/jobs/:id/run', requireRole(['admin']), async (c) => {
   const id = c.req.param('id');
 
   const job = await c.env.DB.prepare(
-    'SELECT * FROM anonymizationJobs WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_anonymizationJobs WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first<{
     id: string; sourceTable: string; fieldsToStrip: string;
     conditions: string | null; status: string;
@@ -135,7 +135,7 @@ dataAnonRouter.post('/jobs/:id/run', requireRole(['admin']), async (c) => {
   // Mark running
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `UPDATE anonymizationJobs SET status = 'running' WHERE id = ? AND tenantId = ?`
+    `UPDATE inst_anonymizationJobs SET status = 'running' WHERE id = ? AND tenantId = ?`
   ).bind(id, tenantId).run();
 
   const fieldsToStrip: string[] = JSON.parse(job.fieldsToStrip);
@@ -159,7 +159,7 @@ dataAnonRouter.post('/jobs/:id/run', requireRole(['admin']), async (c) => {
 
     const completedAt = new Date().toISOString();
     await c.env.DB.prepare(
-      `UPDATE anonymizationJobs
+      `UPDATE inst_anonymizationJobs
        SET status = 'completed', processedCount = ?, outputR2Key = ?, completedAt = ?
        WHERE id = ? AND tenantId = ?`
     ).bind(anonymised.length, r2Key, completedAt, id, tenantId).run();
@@ -173,7 +173,7 @@ dataAnonRouter.post('/jobs/:id/run', requireRole(['admin']), async (c) => {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     await c.env.DB.prepare(
-      `UPDATE anonymizationJobs SET status = 'failed' WHERE id = ? AND tenantId = ?`
+      `UPDATE inst_anonymizationJobs SET status = 'failed' WHERE id = ? AND tenantId = ?`
     ).bind(id, tenantId).run();
     return c.json({ success: false, error: msg }, 500);
   }

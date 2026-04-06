@@ -36,7 +36,7 @@ describe('Campus', () => {
     expect(res.status).toBe(400);
   });
 
-  it('GET /api/campus — lists campuses', async () => {
+  it('GET /api/campus — lists inst_campuses', async () => {
     await ctx.req('POST', '/api/campus', { name: 'Main Campus' });
     const res = await ctx.req('GET', '/api/campus');
     expect(res.status).toBe(200);
@@ -63,37 +63,37 @@ describe('Facilities', () => {
   let ctx: ReturnType<typeof makeApp>;
   beforeEach(() => { ctx = makeApp(); });
 
-  it('POST /api/campus/facilities — creates facility (201)', async () => {
-    const res = await ctx.req('POST', '/api/campus/facilities', { name: 'Lecture Hall A', type: 'lecture_hall', capacity: 200 });
+  it('POST /api/campus/inst_facilities — creates facility (201)', async () => {
+    const res = await ctx.req('POST', '/api/campus/inst_facilities', { name: 'Lecture Hall A', type: 'lecture_hall', capacity: 200 });
     expect(res.status).toBe(201);
     const body = await res.json() as any;
     expect(body.success).toBe(true);
   });
 
-  it('POST /api/campus/facilities — 400 when required missing', async () => {
-    const res = await ctx.req('POST', '/api/campus/facilities', {});
+  it('POST /api/campus/inst_facilities — 400 when required missing', async () => {
+    const res = await ctx.req('POST', '/api/campus/inst_facilities', {});
     expect(res.status).toBe(400);
   });
 
-  it('GET /api/campus/facilities — lists facilities', async () => {
-    await ctx.req('POST', '/api/campus/facilities', { name: 'Lab 1', type: 'lab', capacity: 50 });
-    const res = await ctx.req('GET', '/api/campus/facilities');
+  it('GET /api/campus/inst_facilities — lists inst_facilities', async () => {
+    await ctx.req('POST', '/api/campus/inst_facilities', { name: 'Lab 1', type: 'lab', capacity: 50 });
+    const res = await ctx.req('GET', '/api/campus/inst_facilities');
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(Array.isArray(body.data)).toBe(true);
   });
 
-  it('GET /api/campus/facilities/:id — returns facility', async () => {
-    const r = await ctx.req('POST', '/api/campus/facilities', { name: 'Lab 1', type: 'lab', capacity: 50 });
+  it('GET /api/campus/inst_facilities/:id — returns facility', async () => {
+    const r = await ctx.req('POST', '/api/campus/inst_facilities', { name: 'Lab 1', type: 'lab', capacity: 50 });
     const { id } = await r.json() as any;
-    const res = await ctx.req('GET', `/api/campus/facilities/${id}`);
+    const res = await ctx.req('GET', `/api/campus/inst_facilities/${id}`);
     expect(res.status).toBe(200);
   });
 
-  it('PATCH /api/campus/facilities/:id — updates facility', async () => {
-    const r = await ctx.req('POST', '/api/campus/facilities', { name: 'Lab 1', type: 'lab', capacity: 50 });
+  it('PATCH /api/campus/inst_facilities/:id — updates facility', async () => {
+    const r = await ctx.req('POST', '/api/campus/inst_facilities', { name: 'Lab 1', type: 'lab', capacity: 50 });
     const { id } = await r.json() as any;
-    const res = await ctx.req('PATCH', `/api/campus/facilities/${id}`, { status: 'maintenance' });
+    const res = await ctx.req('PATCH', `/api/campus/inst_facilities/${id}`, { status: 'maintenance' });
     expect(res.status).toBe(200);
   });
 });
@@ -105,7 +105,7 @@ describe('Facility Bookings', () => {
   beforeEach(async () => {
     ctx = makeApp();
     // Create facility — its status defaults to 'available' in the stub rows
-    const r = await ctx.req('POST', '/api/campus/facilities', { name: 'Seminar Room', type: 'conference', capacity: 30 });
+    const r = await ctx.req('POST', '/api/campus/inst_facilities', { name: 'Seminar Room', type: 'conference', capacity: 30 });
     facilityId = ((await r.json()) as any).id;
     // Manually ensure status field is set in DB rows (stub inserts it as 'available' from the SQL default... but our stub doesn't parse DEFAULT)
     // Fix: set the status field directly on the row that was just inserted

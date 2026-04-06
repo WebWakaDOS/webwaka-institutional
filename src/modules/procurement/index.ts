@@ -7,10 +7,10 @@
  * Invariant 5: all monetary values in kobo.
  *
  * Routes:
- *   POST  /api/procurement/vendors           — Register vendor
- *   GET   /api/procurement/vendors           — List vendors
- *   GET   /api/procurement/vendors/:id       — Get vendor
- *   PATCH /api/procurement/vendors/:id       — Update vendor
+ *   POST  /api/procurement/inst_vendors           — Register vendor
+ *   GET   /api/procurement/inst_vendors           — List inst_vendors
+ *   GET   /api/procurement/inst_vendors/:id       — Get vendor
+ *   PATCH /api/procurement/inst_vendors/:id       — Update vendor
  *
  *   POST  /api/procurement/requisitions      — Create purchase requisition
  *   GET   /api/procurement/requisitions      — List requisitions
@@ -28,7 +28,7 @@ export const procurementRouter = new Hono<{ Bindings: Bindings; Variables: AppVa
 
 // ─── Vendors ──────────────────────────────────────────────────────────────────
 
-procurementRouter.post('/vendors', requireRole(['admin']), async (c) => {
+procurementRouter.post('/inst_vendors', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const body = await c.req.json<{
     name: string; email?: string; phone?: string; address?: string; category?: string;
@@ -38,7 +38,7 @@ procurementRouter.post('/vendors', requireRole(['admin']), async (c) => {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO vendors (id, tenantId, name, email, phone, address, category, status, createdAt, updatedAt)
+    `INSERT INTO inst_vendors (id, tenantId, name, email, phone, address, category, status, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
   ).bind(id, tenantId, body.name, body.email ?? null, body.phone ?? null,
     body.address ?? null, body.category ?? null, now, now).run();
@@ -46,25 +46,25 @@ procurementRouter.post('/vendors', requireRole(['admin']), async (c) => {
   return c.json({ success: true, id }, 201);
 });
 
-procurementRouter.get('/vendors', requireRole(['admin']), async (c) => {
+procurementRouter.get('/inst_vendors', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM vendors WHERE tenantId = ? ORDER BY name ASC'
+    'SELECT * FROM inst_vendors WHERE tenantId = ? ORDER BY name ASC'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
-procurementRouter.get('/vendors/:id', requireRole(['admin']), async (c) => {
+procurementRouter.get('/inst_vendors/:id', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const vendor = await c.env.DB.prepare(
-    'SELECT * FROM vendors WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_vendors WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
   if (!vendor) return c.json({ error: 'Vendor not found' }, 404);
   return c.json({ data: vendor });
 });
 
-procurementRouter.patch('/vendors/:id', requireRole(['admin']), async (c) => {
+procurementRouter.patch('/inst_vendors/:id', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const body = await c.req.json<{
@@ -72,7 +72,7 @@ procurementRouter.patch('/vendors/:id', requireRole(['admin']), async (c) => {
   }>();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `UPDATE vendors SET name = COALESCE(?, name), email = COALESCE(?, email),
+    `UPDATE inst_vendors SET name = COALESCE(?, name), email = COALESCE(?, email),
        phone = COALESCE(?, phone), address = COALESCE(?, address),
        category = COALESCE(?, category), status = COALESCE(?, status), updatedAt = ?
      WHERE id = ? AND tenantId = ?`
@@ -83,7 +83,7 @@ procurementRouter.patch('/vendors/:id', requireRole(['admin']), async (c) => {
 
 // ─── Purchase Requisitions ────────────────────────────────────────────────────
 
-procurementRouter.post('/requisitions', requireRole(['admin', 'staff']), async (c) => {
+procurementRouter.post('/requisitions', requireRole(['admin', 'inst_staff']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const requestedBy = c.get('user').userId;
   const body = await c.req.json<{
@@ -104,7 +104,7 @@ procurementRouter.post('/requisitions', requireRole(['admin', 'staff']), async (
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO purchaseRequisitions
+    `INSERT INTO inst_purchaseRequisitions
        (id, tenantId, requestedBy, title, items, totalKobo, vendorId, status, notes, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?)`
   ).bind(id, tenantId, requestedBy, body.title, JSON.stringify(body.items), totalKobo,
@@ -113,15 +113,15 @@ procurementRouter.post('/requisitions', requireRole(['admin', 'staff']), async (
   return c.json({ success: true, id, totalKobo }, 201);
 });
 
-procurementRouter.get('/requisitions', requireRole(['admin', 'staff']), async (c) => {
+procurementRouter.get('/requisitions', requireRole(['admin', 'inst_staff']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const user = c.get('user');
   const status = c.req.query('status');
 
-  let sql = 'SELECT * FROM purchaseRequisitions WHERE tenantId = ?';
+  let sql = 'SELECT * FROM inst_purchaseRequisitions WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
 
-  if (user.role === 'staff') {
+  if (user.role === 'inst_staff') {
     sql += ' AND requestedBy = ?';
     args.push(user.userId);
   }
@@ -136,11 +136,11 @@ procurementRouter.get('/requisitions', requireRole(['admin', 'staff']), async (c
   return c.json({ data: results });
 });
 
-procurementRouter.get('/requisitions/:id', requireRole(['admin', 'staff']), async (c) => {
+procurementRouter.get('/requisitions/:id', requireRole(['admin', 'inst_staff']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const req = await c.env.DB.prepare(
-    'SELECT * FROM purchaseRequisitions WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_purchaseRequisitions WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
   if (!req) return c.json({ error: 'Requisition not found' }, 404);
   return c.json({ data: req });
@@ -153,13 +153,13 @@ procurementRouter.patch('/requisitions/:id/approve', requireRole(['admin']), asy
   const now = new Date().toISOString();
 
   const req = await c.env.DB.prepare(
-    'SELECT status FROM purchaseRequisitions WHERE id = ? AND tenantId = ?'
+    'SELECT status FROM inst_purchaseRequisitions WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first<{ status: string }>();
   if (!req) return c.json({ error: 'Requisition not found' }, 404);
   if (req.status !== 'pending') return c.json({ error: `Cannot approve a ${req.status} requisition` }, 409);
 
   await c.env.DB.prepare(
-    `UPDATE purchaseRequisitions SET status = 'approved', approvedBy = ?, approvedAt = ?, updatedAt = ?
+    `UPDATE inst_purchaseRequisitions SET status = 'approved', approvedBy = ?, approvedAt = ?, updatedAt = ?
      WHERE id = ? AND tenantId = ?`
   ).bind(approvedBy, now, now, id, tenantId).run();
 
@@ -173,7 +173,7 @@ procurementRouter.patch('/requisitions/:id/reject', requireRole(['admin']), asyn
   const now = new Date().toISOString();
 
   const req = await c.env.DB.prepare(
-    'SELECT status FROM purchaseRequisitions WHERE id = ? AND tenantId = ?'
+    'SELECT status FROM inst_purchaseRequisitions WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first<{ status: string }>();
   if (!req) return c.json({ error: 'Requisition not found' }, 404);
   if (!['pending', 'approved'].includes(req.status)) {
@@ -181,7 +181,7 @@ procurementRouter.patch('/requisitions/:id/reject', requireRole(['admin']), asyn
   }
 
   await c.env.DB.prepare(
-    `UPDATE purchaseRequisitions SET status = 'rejected', notes = COALESCE(?, notes), updatedAt = ?
+    `UPDATE inst_purchaseRequisitions SET status = 'rejected', notes = COALESCE(?, notes), updatedAt = ?
      WHERE id = ? AND tenantId = ?`
   ).bind(body.notes ?? null, now, id, tenantId).run();
 
@@ -194,7 +194,7 @@ procurementRouter.patch('/requisitions/:id/receive', requireRole(['admin']), asy
   const now = new Date().toISOString();
 
   const req = await c.env.DB.prepare(
-    'SELECT status FROM purchaseRequisitions WHERE id = ? AND tenantId = ?'
+    'SELECT status FROM inst_purchaseRequisitions WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first<{ status: string }>();
   if (!req) return c.json({ error: 'Requisition not found' }, 404);
   if (req.status !== 'approved' && req.status !== 'ordered') {
@@ -202,7 +202,7 @@ procurementRouter.patch('/requisitions/:id/receive', requireRole(['admin']), asy
   }
 
   await c.env.DB.prepare(
-    `UPDATE purchaseRequisitions SET status = 'received', updatedAt = ?
+    `UPDATE inst_purchaseRequisitions SET status = 'received', updatedAt = ?
      WHERE id = ? AND tenantId = ?`
   ).bind(now, id, tenantId).run();
 

@@ -1,26 +1,26 @@
 /**
  * Learning Management System (LMS) — WebWaka Institutional Suite
  *
- * Course catalogue, materials, assignments, and student submissions.
+ * Course catalogue, materials, inst_assignments, and student inst_submissions.
  *
  * Invariant 2: tenantId always from JWT.
  *
  * Routes:
- *   POST  /api/lms/courses                         — Create course
- *   GET   /api/lms/courses                         — List courses
- *   GET   /api/lms/courses/:id                     — Get course
- *   PATCH /api/lms/courses/:id                     — Update course
+ *   POST  /api/lms/inst_courses                         — Create course
+ *   GET   /api/lms/inst_courses                         — List inst_courses
+ *   GET   /api/lms/inst_courses/:id                     — Get course
+ *   PATCH /api/lms/inst_courses/:id                     — Update course
  *
- *   POST  /api/lms/courses/:id/materials           — Upload material
- *   GET   /api/lms/courses/:id/materials           — List materials
+ *   POST  /api/lms/inst_courses/:id/materials           — Upload material
+ *   GET   /api/lms/inst_courses/:id/materials           — List materials
  *
- *   POST  /api/lms/courses/:id/assignments         — Create assignment
- *   GET   /api/lms/courses/:id/assignments         — List assignments
- *   GET   /api/lms/assignments/:id                 — Get assignment
+ *   POST  /api/lms/inst_courses/:id/inst_assignments         — Create assignment
+ *   GET   /api/lms/inst_courses/:id/inst_assignments         — List inst_assignments
+ *   GET   /api/lms/inst_assignments/:id                 — Get assignment
  *
- *   POST  /api/lms/assignments/:id/submit          — Student submits
- *   GET   /api/lms/assignments/:id/submissions     — List submissions (instructor)
- *   PATCH /api/lms/submissions/:id/grade           — Grade a submission
+ *   POST  /api/lms/inst_assignments/:id/submit          — Student submits
+ *   GET   /api/lms/inst_assignments/:id/inst_submissions     — List inst_submissions (instructor)
+ *   PATCH /api/lms/inst_submissions/:id/grade           — Grade a submission
  */
 
 import { Hono } from 'hono';
@@ -31,7 +31,7 @@ export const lmsRouter = new Hono<{ Bindings: Bindings; Variables: AppVariables 
 
 // ─── Courses ──────────────────────────────────────────────────────────────────
 
-lmsRouter.post('/courses', requireRole(['admin', 'teacher']), async (c) => {
+lmsRouter.post('/inst_courses', requireRole(['admin', 'teacher']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const instructorId = c.get('user').userId;
   const body = await c.req.json<{
@@ -43,7 +43,7 @@ lmsRouter.post('/courses', requireRole(['admin', 'teacher']), async (c) => {
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO courses
+    `INSERT INTO inst_courses
        (id, tenantId, code, title, description, instructorId, units, semester, academicYear, status, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?)`
   ).bind(id, tenantId, body.code, body.title, body.description ?? null,
@@ -52,10 +52,10 @@ lmsRouter.post('/courses', requireRole(['admin', 'teacher']), async (c) => {
   return c.json({ success: true, id }, 201);
 });
 
-lmsRouter.get('/courses', requireRole(['admin', 'teacher', 'student']), async (c) => {
+lmsRouter.get('/inst_courses', requireRole(['admin', 'teacher', 'student']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const user = c.get('user');
-  let sql = 'SELECT * FROM courses WHERE tenantId = ?';
+  let sql = 'SELECT * FROM inst_courses WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
   if (user.role === 'teacher') { sql += ' AND instructorId = ?'; args.push(user.userId); }
   sql += ' ORDER BY createdAt DESC';
@@ -63,23 +63,23 @@ lmsRouter.get('/courses', requireRole(['admin', 'teacher', 'student']), async (c
   return c.json({ data: results });
 });
 
-lmsRouter.get('/courses/:id', requireRole(['admin', 'teacher', 'student']), async (c) => {
+lmsRouter.get('/inst_courses/:id', requireRole(['admin', 'teacher', 'student']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const course = await c.env.DB.prepare(
-    'SELECT * FROM courses WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_courses WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
   if (!course) return c.json({ error: 'Course not found' }, 404);
   return c.json({ data: course });
 });
 
-lmsRouter.patch('/courses/:id', requireRole(['admin', 'teacher']), async (c) => {
+lmsRouter.patch('/inst_courses/:id', requireRole(['admin', 'teacher']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const body = await c.req.json<{ title?: string; description?: string; status?: string }>();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `UPDATE courses SET title = COALESCE(?, title), description = COALESCE(?, description),
+    `UPDATE inst_courses SET title = COALESCE(?, title), description = COALESCE(?, description),
        status = COALESCE(?, status), updatedAt = ? WHERE id = ? AND tenantId = ?`
   ).bind(body.title ?? null, body.description ?? null, body.status ?? null, now, id, tenantId).run();
   return c.json({ success: true });
@@ -87,7 +87,7 @@ lmsRouter.patch('/courses/:id', requireRole(['admin', 'teacher']), async (c) => 
 
 // ─── Course Materials ─────────────────────────────────────────────────────────
 
-lmsRouter.post('/courses/:id/materials', requireRole(['admin', 'teacher']), async (c) => {
+lmsRouter.post('/inst_courses/:id/materials', requireRole(['admin', 'teacher']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const uploadedBy = c.get('user').userId;
   const courseId = c.req.param('id');
@@ -99,7 +99,7 @@ lmsRouter.post('/courses/:id/materials', requireRole(['admin', 'teacher']), asyn
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO courseMaterials (id, tenantId, courseId, title, type, r2Key, url, uploadedBy, createdAt)
+    `INSERT INTO inst_courseMaterials (id, tenantId, courseId, title, type, r2Key, url, uploadedBy, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, tenantId, courseId, body.title, body.type,
     body.r2Key ?? null, body.url ?? null, uploadedBy, now).run();
@@ -107,18 +107,18 @@ lmsRouter.post('/courses/:id/materials', requireRole(['admin', 'teacher']), asyn
   return c.json({ success: true, id }, 201);
 });
 
-lmsRouter.get('/courses/:id/materials', requireRole(['admin', 'teacher', 'student']), async (c) => {
+lmsRouter.get('/inst_courses/:id/materials', requireRole(['admin', 'teacher', 'student']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const courseId = c.req.param('id');
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM courseMaterials WHERE tenantId = ? AND courseId = ? ORDER BY createdAt DESC'
+    'SELECT * FROM inst_courseMaterials WHERE tenantId = ? AND courseId = ? ORDER BY createdAt DESC'
   ).bind(tenantId, courseId).all();
   return c.json({ data: results });
 });
 
 // ─── Assignments ──────────────────────────────────────────────────────────────
 
-lmsRouter.post('/courses/:id/assignments', requireRole(['admin', 'teacher']), async (c) => {
+lmsRouter.post('/inst_courses/:id/inst_assignments', requireRole(['admin', 'teacher']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const createdBy = c.get('user').userId;
   const courseId = c.req.param('id');
@@ -130,7 +130,7 @@ lmsRouter.post('/courses/:id/assignments', requireRole(['admin', 'teacher']), as
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO assignments (id, tenantId, courseId, title, description, dueDate, maxPoints, createdBy, createdAt, updatedAt)
+    `INSERT INTO inst_assignments (id, tenantId, courseId, title, description, dueDate, maxPoints, createdBy, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, tenantId, courseId, body.title, body.description ?? null,
     body.dueDate, body.maxPoints ?? 100, createdBy, now, now).run();
@@ -138,20 +138,20 @@ lmsRouter.post('/courses/:id/assignments', requireRole(['admin', 'teacher']), as
   return c.json({ success: true, id }, 201);
 });
 
-lmsRouter.get('/courses/:id/assignments', requireRole(['admin', 'teacher', 'student']), async (c) => {
+lmsRouter.get('/inst_courses/:id/inst_assignments', requireRole(['admin', 'teacher', 'student']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const courseId = c.req.param('id');
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM assignments WHERE tenantId = ? AND courseId = ? ORDER BY dueDate ASC'
+    'SELECT * FROM inst_assignments WHERE tenantId = ? AND courseId = ? ORDER BY dueDate ASC'
   ).bind(tenantId, courseId).all();
   return c.json({ data: results });
 });
 
-lmsRouter.get('/assignments/:id', requireRole(['admin', 'teacher', 'student']), async (c) => {
+lmsRouter.get('/inst_assignments/:id', requireRole(['admin', 'teacher', 'student']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const assignment = await c.env.DB.prepare(
-    'SELECT * FROM assignments WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_assignments WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
   if (!assignment) return c.json({ error: 'Assignment not found' }, 404);
   return c.json({ data: assignment });
@@ -159,7 +159,7 @@ lmsRouter.get('/assignments/:id', requireRole(['admin', 'teacher', 'student']), 
 
 // ─── Submissions ──────────────────────────────────────────────────────────────
 
-lmsRouter.post('/assignments/:id/submit', requireRole(['student']), async (c) => {
+lmsRouter.post('/inst_assignments/:id/submit', requireRole(['student']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const studentId = c.get('user').userId;
   const assignmentId = c.req.param('id');
@@ -169,16 +169,16 @@ lmsRouter.post('/assignments/:id/submit', requireRole(['student']), async (c) =>
     return c.json({ error: 'content or r2Key is required' }, 400);
   }
 
-  // Prevent duplicate submissions
+  // Prevent duplicate inst_submissions
   const existing = await c.env.DB.prepare(
-    'SELECT id FROM submissions WHERE assignmentId = ? AND studentId = ? AND tenantId = ?'
+    'SELECT id FROM inst_submissions WHERE assignmentId = ? AND studentId = ? AND tenantId = ?'
   ).bind(assignmentId, studentId, tenantId).first();
   if (existing) return c.json({ error: 'Already submitted for this assignment' }, 409);
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO submissions
+    `INSERT INTO inst_submissions
        (id, tenantId, assignmentId, studentId, content, r2Key, submittedAt, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, tenantId, assignmentId, studentId,
@@ -187,16 +187,16 @@ lmsRouter.post('/assignments/:id/submit', requireRole(['student']), async (c) =>
   return c.json({ success: true, id, submittedAt: now }, 201);
 });
 
-lmsRouter.get('/assignments/:id/submissions', requireRole(['admin', 'teacher']), async (c) => {
+lmsRouter.get('/inst_assignments/:id/inst_submissions', requireRole(['admin', 'teacher']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const assignmentId = c.req.param('id');
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM submissions WHERE tenantId = ? AND assignmentId = ? ORDER BY submittedAt ASC'
+    'SELECT * FROM inst_submissions WHERE tenantId = ? AND assignmentId = ? ORDER BY submittedAt ASC'
   ).bind(tenantId, assignmentId).all();
   return c.json({ data: results });
 });
 
-lmsRouter.patch('/submissions/:id/grade', requireRole(['admin', 'teacher']), async (c) => {
+lmsRouter.patch('/inst_submissions/:id/grade', requireRole(['admin', 'teacher']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const gradedBy = c.get('user').userId;
   const id = c.req.param('id');
@@ -205,7 +205,7 @@ lmsRouter.patch('/submissions/:id/grade', requireRole(['admin', 'teacher']), asy
 
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `UPDATE submissions SET grade = ?, feedback = COALESCE(?, feedback), gradedBy = ?, gradedAt = ?
+    `UPDATE inst_submissions SET grade = ?, feedback = COALESCE(?, feedback), gradedBy = ?, gradedAt = ?
      WHERE id = ? AND tenantId = ?`
   ).bind(body.grade, body.feedback ?? null, gradedBy, now, id, tenantId).run();
 

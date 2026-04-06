@@ -82,23 +82,23 @@ describe('EHR — Prescriptions', () => {
     patientDbId = ((await r.json()) as any).id;
   });
 
-  it('POST /api/ehr/patients/:id/prescriptions — creates prescription (201)', async () => {
-    const res = await ctx.req('POST', `/api/ehr/patients/${patientDbId}/prescriptions`, {
+  it('POST /api/ehr/patients/:id/inst_prescriptions — creates prescription (201)', async () => {
+    const res = await ctx.req('POST', `/api/ehr/patients/${patientDbId}/inst_prescriptions`, {
       medication: 'Paracetamol', dosage: '500mg', frequency: 'Twice daily', duration: '7 days',
     });
     expect(res.status).toBe(201);
   });
 
-  it('POST /api/ehr/patients/:id/prescriptions — 400 when medication missing', async () => {
-    const res = await ctx.req('POST', `/api/ehr/patients/${patientDbId}/prescriptions`, {});
+  it('POST /api/ehr/patients/:id/inst_prescriptions — 400 when medication missing', async () => {
+    const res = await ctx.req('POST', `/api/ehr/patients/${patientDbId}/inst_prescriptions`, {});
     expect(res.status).toBe(400);
   });
 
-  it('GET /api/ehr/patients/:id/prescriptions — lists prescriptions', async () => {
-    await ctx.req('POST', `/api/ehr/patients/${patientDbId}/prescriptions`, {
+  it('GET /api/ehr/patients/:id/inst_prescriptions — lists inst_prescriptions', async () => {
+    await ctx.req('POST', `/api/ehr/patients/${patientDbId}/inst_prescriptions`, {
       medication: 'Ibuprofen', dosage: '200mg', frequency: 'Thrice daily', duration: '5 days',
     });
-    const res = await ctx.req('GET', `/api/ehr/patients/${patientDbId}/prescriptions`);
+    const res = await ctx.req('GET', `/api/ehr/patients/${patientDbId}/inst_prescriptions`);
     expect(res.status).toBe(200);
   });
 });

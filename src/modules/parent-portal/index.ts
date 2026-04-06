@@ -2,7 +2,7 @@
  * Parent / Guardian Portal — WebWaka Institutional Suite
  *
  * Allows parents to view student progress (grades, attendance, fees)
- * and be linked to specific students with relationship tracking.
+ * and be linked to specific inst_students with relationship tracking.
  *
  * Invariant 2: tenantId always from JWT.
  */
@@ -25,14 +25,14 @@ parentPortalRouter.post('/links', requireRole(['admin']), async (c) => {
   }
 
   const existing = await c.env.DB.prepare(
-    'SELECT id FROM parentLinks WHERE parentUserId = ? AND studentId = ? AND tenantId = ?'
+    'SELECT id FROM inst_parentLinks WHERE parentUserId = ? AND studentId = ? AND tenantId = ?'
   ).bind(body.parentUserId, body.studentId, tenantId).first();
   if (existing) return c.json({ error: 'Link already exists' }, 409);
 
   const id = crypto.randomUUID();
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `INSERT INTO parentLinks (id, tenantId, parentUserId, studentId, relationship, status, createdAt, updatedAt)
+    `INSERT INTO inst_parentLinks (id, tenantId, parentUserId, studentId, relationship, status, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, 'active', ?, ?)`
   ).bind(id, tenantId, body.parentUserId, body.studentId,
     body.relationship ?? 'parent', now, now).run();
@@ -43,7 +43,7 @@ parentPortalRouter.post('/links', requireRole(['admin']), async (c) => {
 parentPortalRouter.get('/links', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { parentUserId, studentId } = c.req.query() as Record<string, string>;
-  let sql = 'SELECT * FROM parentLinks WHERE tenantId = ?';
+  let sql = 'SELECT * FROM inst_parentLinks WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
   if (parentUserId) { sql += ' AND parentUserId = ?'; args.push(parentUserId); }
   if (studentId)    { sql += ' AND studentId = ?';    args.push(studentId); }
@@ -57,13 +57,13 @@ parentPortalRouter.get('/dashboard', requireRole(['parent', 'guardian']), async 
   const tenantId = c.get('user').tenantId;
   const parentUserId = c.get('user').userId;
 
-  // Get all students linked to this parent
+  // Get all inst_students linked to this parent
   const { results: links } = await c.env.DB.prepare(
-    `SELECT studentId FROM parentLinks WHERE tenantId = ? AND parentUserId = ? AND status = 'active'`
+    `SELECT studentId FROM inst_parentLinks WHERE tenantId = ? AND parentUserId = ? AND status = 'active'`
   ).bind(tenantId, parentUserId).all<{ studentId: string }>();
 
   if (links.length === 0) {
-    return c.json({ data: { students: [] } });
+    return c.json({ data: { inst_students: [] } });
   }
 
   const studentIds = links.map((l) => l.studentId);
@@ -72,27 +72,27 @@ parentPortalRouter.get('/dashboard', requireRole(['parent', 'guardian']), async 
   for (const studentId of studentIds) {
     // Student profile
     const student = await c.env.DB.prepare(
-      'SELECT * FROM students WHERE id = ? AND tenantId = ?'
+      'SELECT * FROM inst_students WHERE id = ? AND tenantId = ?'
     ).bind(studentId, tenantId).first();
 
     // Recent grades
     const { results: grades } = await c.env.DB.prepare(
-      'SELECT courseCode, courseName, grade, gradePoints, academicYear, semester FROM gradeRecords WHERE tenantId = ? AND studentId = ? ORDER BY createdAt DESC LIMIT 10'
+      'SELECT courseCode, courseName, grade, gradePoints, academicYear, semester FROM inst_gradeRecords WHERE tenantId = ? AND studentId = ? ORDER BY createdAt DESC LIMIT 10'
     ).bind(tenantId, studentId).all();
 
     // Outstanding fee balances
     const { results: fees } = await c.env.DB.prepare(
-      `SELECT feeType, amountKobo, status, academicYear FROM feeRecords WHERE tenantId = ? AND studentId = ? AND status != 'success' ORDER BY createdAt DESC LIMIT 5`
+      `SELECT feeType, amountKobo, status, academicYear FROM inst_feeRecords WHERE tenantId = ? AND studentId = ? AND status != 'success' ORDER BY createdAt DESC LIMIT 5`
     ).bind(tenantId, studentId).all();
 
     // Recent attendance (last 10 days)
     const tenDaysAgo = new Date(Date.now() - 10 * 86400_000).toISOString();
     const { results: attendance } = await c.env.DB.prepare(
-      'SELECT timestamp, status FROM attendanceLogs WHERE tenantId = ? AND memberId = ? AND timestamp >= ? ORDER BY timestamp DESC'
+      'SELECT timestamp, status FROM inst_attendanceLogs WHERE tenantId = ? AND memberId = ? AND timestamp >= ? ORDER BY timestamp DESC'
     ).bind(tenantId, studentId, tenDaysAgo).all();
 
     dashboards.push({ student, grades, fees, attendance });
   }
 
-  return c.json({ data: { students: dashboards } });
+  return c.json({ data: { inst_students: dashboards } });
 });

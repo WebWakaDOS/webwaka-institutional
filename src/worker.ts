@@ -18,7 +18,7 @@ import type { Bindings, AppVariables } from './core/types';
 
 // ─── Existing Modules ─────────────────────────────────────────────────────────
 import { studentMgmtRouter }                  from './modules/student-mgmt/index';
-import { staffMgmtRouter }                    from './modules/staff-mgmt/index';
+import { staffMgmtRouter }                    from './modules/inst_staff-mgmt/index';
 import { feeCollectionRouter }                from './modules/fee-collection/index';
 import { qualificationVerificationRouter }    from './modules/qualification-verification/index';
 
@@ -40,13 +40,13 @@ import { schedulerRouter }                    from './modules/operations/schedul
 import { dataAnonRouter }                     from './modules/data-anon/index';
 
 // ─── Operational Modules ──────────────────────────────────────────────────────
-import { assetsRouter }                       from './modules/assets/index';
+import { assetsRouter }                       from './modules/inst_assets/index';
 import { visitorRouter }                      from './modules/visitor/index';
-import { alumniRouter }                       from './modules/alumni/index';
+import { alumniRouter }                       from './modules/inst_alumni/index';
 import { libraryRouter }                      from './modules/library/index';
 import { cafeteriaRouter }                    from './modules/cafeteria/index';
 import { attendanceRouter }                   from './modules/attendance/index';
-import { incidentsRouter }                    from './modules/incidents/index';
+import { incidentsRouter }                    from './modules/inst_incidents/index';
 import { dmsRouter }                          from './modules/dms/index';
 import { campusRouter }                       from './modules/campus/index';
 import { parentPortalRouter }                 from './modules/parent-portal/index';
@@ -75,8 +75,8 @@ app.get('/health', (c) => c.json({
 }));
 
 // ─── Existing Routes ──────────────────────────────────────────────────────────
-app.route('/api/students',       studentMgmtRouter);
-app.route('/api/staff',          staffMgmtRouter);
+app.route('/api/inst_students',       studentMgmtRouter);
+app.route('/api/inst_staff',          staffMgmtRouter);
 app.route('/api/fees',           feeCollectionRouter);
 app.route('/api/qualifications', qualificationVerificationRouter);
 
@@ -98,13 +98,13 @@ app.route('/api/scheduler',      schedulerRouter);
 app.route('/api/anon',           dataAnonRouter);
 
 // ─── Operational Modules ──────────────────────────────────────────────────────
-app.route('/api/assets',         assetsRouter);
+app.route('/api/inst_assets',         assetsRouter);
 app.route('/api/visitors',       visitorRouter);
-app.route('/api/alumni',         alumniRouter);
+app.route('/api/inst_alumni',         alumniRouter);
 app.route('/api/library',        libraryRouter);
 app.route('/api/cafeteria',      cafeteriaRouter);
 app.route('/api/attendance',     attendanceRouter);
-app.route('/api/incidents',      incidentsRouter);
+app.route('/api/inst_incidents',      incidentsRouter);
 app.route('/api/dms',            dmsRouter);
 app.route('/api/campus',         campusRouter);
 app.route('/api/parents',        parentPortalRouter);

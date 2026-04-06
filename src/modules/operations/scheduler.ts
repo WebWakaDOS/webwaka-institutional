@@ -5,7 +5,7 @@
  *
  * Takes a list of required sessions (classes, meetings, procedures) and available
  * rooms/resources, calls getAICompletion() from the ai-platform-client to generate
- * a conflict-free optimal schedule, then saves to the `schedules` D1 table.
+ * a conflict-free optimal schedule, then saves to the `inst_schedules` D1 table.
  *
  * Upstream outage resilience: if the AI platform is unavailable (network error,
  * 503, timeout), the schedule is persisted with status='failed' and the response
@@ -14,10 +14,10 @@
  * Invariant 2: tenantId always from JWT.
  *
  * Routes:
- *   POST  /api/scheduler/schedules        — Generate a new AI schedule
- *   GET   /api/scheduler/schedules        — List schedules
- *   GET   /api/scheduler/schedules/:id    — Get schedule detail
- *   DELETE /api/scheduler/schedules/:id   — Remove schedule
+ *   POST  /api/scheduler/inst_schedules        — Generate a new AI schedule
+ *   GET   /api/scheduler/inst_schedules        — List inst_schedules
+ *   GET   /api/scheduler/inst_schedules/:id    — Get schedule detail
+ *   DELETE /api/scheduler/inst_schedules/:id   — Remove schedule
  */
 
 import { Hono } from 'hono';
@@ -31,7 +31,7 @@ interface Room {
   id: string;
   name: string;
   capacity: number;
-  facilities?: string[];
+  inst_facilities?: string[];
 }
 
 interface Session {
@@ -43,8 +43,8 @@ interface Session {
   preferredFacilities?: string[];
 }
 
-// ─── POST /api/scheduler/schedules ───────────────────────────────────────────
-schedulerRouter.post('/schedules', requireRole(['admin']), async (c) => {
+// ─── POST /api/scheduler/inst_schedules ───────────────────────────────────────────
+schedulerRouter.post('/inst_schedules', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const createdBy = c.get('user').userId;
   const body = await c.req.json<{
@@ -67,7 +67,7 @@ schedulerRouter.post('/schedules', requireRole(['admin']), async (c) => {
   const inputData = { rooms: body.rooms, sessions: body.sessions, constraints: body.constraints };
 
   await c.env.DB.prepare(
-    `INSERT INTO schedules (id, tenantId, title, type, inputData, status, createdBy, createdAt)
+    `INSERT INTO inst_schedules (id, tenantId, title, type, inputData, status, createdBy, createdAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, tenantId, body.title, body.type ?? 'room', JSON.stringify(inputData), 'pending', createdBy, now).run();
 
@@ -76,7 +76,7 @@ schedulerRouter.post('/schedules', requireRole(['admin']), async (c) => {
 Generate a conflict-free, optimal schedule for the following:
 
 ROOMS:
-${body.rooms.map((r) => `- ${r.name} (capacity: ${r.capacity}, facilities: ${(r.facilities ?? []).join(', ') || 'standard'})`).join('\n')}
+${body.rooms.map((r) => `- ${r.name} (capacity: ${r.capacity}, inst_facilities: ${(r.inst_facilities ?? []).join(', ') || 'standard'})`).join('\n')}
 
 SESSIONS TO SCHEDULE:
 ${body.sessions.map((s) => `- ${s.name}: needs capacity ${s.requiredCapacity}, duration ${s.durationMinutes}min${s.instructor ? `, instructor: ${s.instructor}` : ''}${(s.preferredFacilities ?? []).length ? `, prefers: ${s.preferredFacilities!.join(', ')}` : ''}`).join('\n')}
@@ -140,7 +140,7 @@ Return a JSON object with this exact structure:
 
   const generatedAt = new Date().toISOString();
   await c.env.DB.prepare(
-    `UPDATE schedules SET data = ?, model = ?, tokensUsed = ?, status = ?, generatedAt = ?
+    `UPDATE inst_schedules SET data = ?, model = ?, tokensUsed = ?, status = ?, generatedAt = ?
      WHERE id = ? AND tenantId = ?`
   ).bind(JSON.stringify(scheduleData), model, tokensUsed, finalStatus, generatedAt, id, tenantId).run();
 
@@ -156,32 +156,32 @@ Return a JSON object with this exact structure:
   );
 });
 
-// ─── GET /api/scheduler/schedules ─────────────────────────────────────────────
-schedulerRouter.get('/schedules', requireRole(['admin']), async (c) => {
+// ─── GET /api/scheduler/inst_schedules ─────────────────────────────────────────────
+schedulerRouter.get('/inst_schedules', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { results } = await c.env.DB.prepare(
-    'SELECT id, tenantId, title, type, status, generatedAt, tokensUsed, createdAt FROM schedules WHERE tenantId = ? ORDER BY createdAt DESC'
+    'SELECT id, tenantId, title, type, status, generatedAt, tokensUsed, createdAt FROM inst_schedules WHERE tenantId = ? ORDER BY createdAt DESC'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
 
-// ─── GET /api/scheduler/schedules/:id ─────────────────────────────────────────
-schedulerRouter.get('/schedules/:id', requireRole(['admin']), async (c) => {
+// ─── GET /api/scheduler/inst_schedules/:id ─────────────────────────────────────────
+schedulerRouter.get('/inst_schedules/:id', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   const record = await c.env.DB.prepare(
-    'SELECT * FROM schedules WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_schedules WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
   if (!record) return c.json({ error: 'Schedule not found' }, 404);
   return c.json({ data: record });
 });
 
-// ─── DELETE /api/scheduler/schedules/:id ─────────────────────────────────────
-schedulerRouter.delete('/schedules/:id', requireRole(['admin']), async (c) => {
+// ─── DELETE /api/scheduler/inst_schedules/:id ─────────────────────────────────────
+schedulerRouter.delete('/inst_schedules/:id', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const id = c.req.param('id');
   await c.env.DB.prepare(
-    'DELETE FROM schedules WHERE id = ? AND tenantId = ?'
+    'DELETE FROM inst_schedules WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).run();
   return c.json({ success: true });
 });

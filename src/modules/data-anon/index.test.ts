@@ -25,7 +25,7 @@ describe('Data Anonymisation', () => {
   beforeEach(() => { ctx = makeApp(); });
 
   it('POST /api/anon/jobs — creates job (201)', async () => {
-    const res = await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'students' });
+    const res = await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'inst_students' });
     expect(res.status).toBe(201);
     const body = await res.json() as any;
     expect(body.success).toBe(true);
@@ -46,14 +46,14 @@ describe('Data Anonymisation', () => {
 
   it('POST /api/anon/jobs — 400 when fieldsToStrip contains no valid PII', async () => {
     const res = await ctx.req('POST', '/api/anon/jobs', {
-      sourceTable: 'students', fieldsToStrip: ['createdAt', 'id'],
+      sourceTable: 'inst_students', fieldsToStrip: ['createdAt', 'id'],
     });
     expect(res.status).toBe(400);
   });
 
   it('POST /api/anon/jobs — custom fieldsToStrip', async () => {
     const res = await ctx.req('POST', '/api/anon/jobs', {
-      sourceTable: 'staff', fieldsToStrip: ['email', 'phone'],
+      sourceTable: 'inst_staff', fieldsToStrip: ['email', 'phone'],
     });
     expect(res.status).toBe(201);
     const body = await res.json() as any;
@@ -61,7 +61,7 @@ describe('Data Anonymisation', () => {
   });
 
   it('GET /api/anon/jobs — lists jobs', async () => {
-    await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'students' });
+    await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'inst_students' });
     const res = await ctx.req('GET', '/api/anon/jobs');
     expect(res.status).toBe(200);
     const body = await res.json() as any;
@@ -70,12 +70,12 @@ describe('Data Anonymisation', () => {
   });
 
   it('GET /api/anon/jobs/:id — returns job', async () => {
-    const createRes = await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'alumni' });
+    const createRes = await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'inst_alumni' });
     const { id } = await createRes.json() as any;
     const res = await ctx.req('GET', `/api/anon/jobs/${id}`);
     expect(res.status).toBe(200);
     const body = await res.json() as any;
-    expect(body.data.sourceTable).toBe('alumni');
+    expect(body.data.sourceTable).toBe('inst_alumni');
   });
 
   it('GET /api/anon/jobs/:id — 404 for unknown', async () => {
@@ -84,7 +84,7 @@ describe('Data Anonymisation', () => {
   });
 
   it('POST /api/anon/jobs/:id/run — executes job and returns processed count', async () => {
-    const createRes = await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'visitorLogs' });
+    const createRes = await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'inst_visitorLogs' });
     const { id } = await createRes.json() as any;
     // Seed some source rows in the stub
     ctx.db._rows.push({
@@ -105,7 +105,7 @@ describe('Data Anonymisation', () => {
   });
 
   it('POST /api/anon/jobs/:id/run — 409 if job already completed', async () => {
-    const createRes = await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'students' });
+    const createRes = await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'inst_students' });
     const { id } = await createRes.json() as any;
     // Manually set status to completed
     const row = ctx.db._rows.find((r: any) => r.id === id);
@@ -115,7 +115,7 @@ describe('Data Anonymisation', () => {
   });
 
   it('POST /api/anon/jobs/:id/run — 409 if job already running', async () => {
-    const createRes = await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'students' });
+    const createRes = await ctx.req('POST', '/api/anon/jobs', { sourceTable: 'inst_students' });
     const { id } = await createRes.json() as any;
     const row = ctx.db._rows.find((r: any) => r.id === id);
     if (row) row['status'] = 'running';

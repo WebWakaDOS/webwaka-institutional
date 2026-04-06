@@ -85,13 +85,13 @@ describe('Insurance — Document Upload', () => {
     ctx = makeApp();
     const r = await ctx.req('POST', '/api/insurance', validClaim);
     claimId = ((await r.json()) as any).id;
-    // Ensure documents field is set in stub row
+    // Ensure inst_documents field is set in stub row
     const row = ctx.db._rows.find((rr: any) => rr.id === claimId);
-    if (row) row['documents'] = '[]';
+    if (row) row['inst_documents'] = '[]';
   });
 
-  it('POST /api/insurance/:id/documents — uploads document', async () => {
-    const res = await ctx.app.fetch(new Request(`http://localhost/api/insurance/${claimId}/documents`, {
+  it('POST /api/insurance/:id/inst_documents — uploads document', async () => {
+    const res = await ctx.app.fetch(new Request(`http://localhost/api/insurance/${claimId}/inst_documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/pdf', Authorization: 'Bearer mock' },
       body: new TextEncoder().encode('pdf content'),
@@ -102,8 +102,8 @@ describe('Insurance — Document Upload', () => {
     expect(typeof body.r2Key).toBe('string');
   });
 
-  it('POST /api/insurance/:id/documents — 400 when body empty', async () => {
-    const res = await ctx.app.fetch(new Request(`http://localhost/api/insurance/${claimId}/documents`, {
+  it('POST /api/insurance/:id/inst_documents — 400 when body empty', async () => {
+    const res = await ctx.app.fetch(new Request(`http://localhost/api/insurance/${claimId}/inst_documents`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/pdf', Authorization: 'Bearer mock' },
       body: new Uint8Array(0),
@@ -111,8 +111,8 @@ describe('Insurance — Document Upload', () => {
     expect(res.status).toBe(400);
   });
 
-  it('POST /api/insurance/:id/documents — 404 for unknown claim', async () => {
-    const res = await ctx.app.fetch(new Request('http://localhost/api/insurance/no-such-claim/documents', {
+  it('POST /api/insurance/:id/inst_documents — 404 for unknown claim', async () => {
+    const res = await ctx.app.fetch(new Request('http://localhost/api/insurance/no-such-claim/inst_documents', {
       method: 'POST',
       headers: { 'Content-Type': 'application/pdf', Authorization: 'Bearer mock' },
       body: new TextEncoder().encode('pdf'),

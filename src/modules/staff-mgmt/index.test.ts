@@ -13,7 +13,7 @@ function makeApp(role = 'admin', userId = 'user-test-123', tenantId = 'tenant-in
     c.set('user', { userId, tenantId, role, permissions: [] });
     await next();
   });
-  app.route('/api/staff', staffMgmtRouter);
+  app.route('/api/inst_staff', staffMgmtRouter);
   const env = makeEnv(db);
   const req = (method: string, path: string, body?: unknown) => {
     const init: RequestInit = { method, headers: { 'Content-Type': 'application/json', Authorization: 'Bearer mock' } };
@@ -35,66 +35,66 @@ describe('Staff Management', () => {
 
   beforeEach(() => { ctx = makeApp(); });
 
-  it('POST /api/staff — creates staff and returns 201', async () => {
-    const res = await ctx.req('POST', '/api/staff', validStaff);
+  it('POST /api/inst_staff — creates inst_staff and returns 201', async () => {
+    const res = await ctx.req('POST', '/api/inst_staff', validStaff);
     expect(res.status).toBe(201);
     const body = await res.json() as any;
     expect(body.success).toBe(true);
     expect(typeof body.id).toBe('string');
   });
 
-  it('POST /api/staff — returns 400 when required fields missing', async () => {
-    const res = await ctx.req('POST', '/api/staff', { staffId: 'X', ndprConsent: true });
+  it('POST /api/inst_staff — returns 400 when required fields missing', async () => {
+    const res = await ctx.req('POST', '/api/inst_staff', { staffId: 'X', ndprConsent: true });
     expect(res.status).toBe(400);
   });
 
-  it('POST /api/staff — rejects missing NDPR consent', async () => {
-    const res = await ctx.req('POST', '/api/staff', { ...validStaff, ndprConsent: false });
+  it('POST /api/inst_staff — rejects missing NDPR consent', async () => {
+    const res = await ctx.req('POST', '/api/inst_staff', { ...validStaff, ndprConsent: false });
     expect(res.status).toBeGreaterThanOrEqual(400);
   });
 
-  it('POST /api/staff — returns 409 on duplicate staffId', async () => {
-    await ctx.req('POST', '/api/staff', validStaff);
-    const res = await ctx.req('POST', '/api/staff', validStaff);
+  it('POST /api/inst_staff — returns 409 on duplicate staffId', async () => {
+    await ctx.req('POST', '/api/inst_staff', validStaff);
+    const res = await ctx.req('POST', '/api/inst_staff', validStaff);
     expect(res.status).toBe(409);
   });
 
-  it('GET /api/staff — returns list of staff (admin)', async () => {
-    await ctx.req('POST', '/api/staff', validStaff);
-    const res = await ctx.req('GET', '/api/staff');
+  it('GET /api/inst_staff — returns list of inst_staff (admin)', async () => {
+    await ctx.req('POST', '/api/inst_staff', validStaff);
+    const res = await ctx.req('GET', '/api/inst_staff');
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(Array.isArray(body.data)).toBe(true);
     expect(body.data.length).toBe(1);
   });
 
-  it('GET /api/staff/:id — returns staff member', async () => {
-    const createRes = await ctx.req('POST', '/api/staff', validStaff);
+  it('GET /api/inst_staff/:id — returns inst_staff member', async () => {
+    const createRes = await ctx.req('POST', '/api/inst_staff', validStaff);
     const { id } = await createRes.json() as any;
-    const res = await ctx.req('GET', `/api/staff/${id}`);
+    const res = await ctx.req('GET', `/api/inst_staff/${id}`);
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(body.data.staffId).toBe('STF/001');
   });
 
-  it('GET /api/staff/:id — returns 404 for unknown', async () => {
-    const res = await ctx.req('GET', '/api/staff/tenant-inst-123-no-such-id');
+  it('GET /api/inst_staff/:id — returns 404 for unknown', async () => {
+    const res = await ctx.req('GET', '/api/inst_staff/tenant-inst-123-no-such-id');
     expect(res.status).toBe(404);
   });
 
-  it('PATCH /api/staff/:id — updates profile fields', async () => {
-    const createRes = await ctx.req('POST', '/api/staff', validStaff);
+  it('PATCH /api/inst_staff/:id — updates profile fields', async () => {
+    const createRes = await ctx.req('POST', '/api/inst_staff', validStaff);
     const { id } = await createRes.json() as any;
-    const res = await ctx.req('PATCH', `/api/staff/${id}`, { grossSalaryKobo: 60000000 });
+    const res = await ctx.req('PATCH', `/api/inst_staff/${id}`, { grossSalaryKobo: 60000000 });
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(body.success).toBe(true);
   });
 
-  it('DELETE /api/staff/:id — soft deletes', async () => {
-    const createRes = await ctx.req('POST', '/api/staff', validStaff);
+  it('DELETE /api/inst_staff/:id — soft deletes', async () => {
+    const createRes = await ctx.req('POST', '/api/inst_staff', validStaff);
     const { id } = await createRes.json() as any;
-    const res = await ctx.req('DELETE', `/api/staff/${id}`);
+    const res = await ctx.req('DELETE', `/api/inst_staff/${id}`);
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(body.success).toBe(true);

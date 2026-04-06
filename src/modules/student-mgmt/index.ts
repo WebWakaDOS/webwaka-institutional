@@ -9,14 +9,14 @@
  * Invariant 5: Nigeria First — en-NG defaults
  *
  * WI-003: NDPR consent is asserted and recorded on every new student registration.
- * WI-010: Full profile fields captured; staff-only mutation endpoints enforced.
+ * WI-010: Full profile fields captured; inst_staff-only mutation endpoints enforced.
  *
  * Routes:
- *   POST  /api/students          — Register new student (requires NDPR consent)
- *   GET   /api/students          — List students (admin/teacher)
- *   GET   /api/students/:id      — Get student (self, teacher, admin)
- *   PATCH /api/students/:id      — Update profile (admin only)
- *   DELETE /api/students/:id     — Deactivate student (admin only)
+ *   POST  /api/inst_students          — Register new student (requires NDPR consent)
+ *   GET   /api/inst_students          — List inst_students (admin/teacher)
+ *   GET   /api/inst_students/:id      — Get student (self, teacher, admin)
+ *   PATCH /api/inst_students/:id      — Update profile (admin only)
+ *   DELETE /api/inst_students/:id     — Deactivate student (admin only)
  */
 
 import { Hono } from 'hono';
@@ -26,7 +26,7 @@ import type { Bindings, AppVariables } from '../../core/types';
 
 export const studentMgmtRouter = new Hono<{ Bindings: Bindings; Variables: AppVariables }>();
 
-// ─── POST /api/students ───────────────────────────────────────────────────────
+// ─── POST /api/inst_students ───────────────────────────────────────────────────────
 
 studentMgmtRouter.post('/', requireRole(['admin']), async (c) => {
   const user = c.get('user');
@@ -56,7 +56,7 @@ studentMgmtRouter.post('/', requireRole(['admin']), async (c) => {
 
   // Prevent duplicate matric numbers within the same tenant
   const existing = await c.env.DB.prepare(
-    'SELECT id FROM students WHERE matricNumber = ? AND tenantId = ?'
+    'SELECT id FROM inst_students WHERE matricNumber = ? AND tenantId = ?'
   ).bind(body.matricNumber, tenantId).first();
   if (existing) {
     return c.json({ error: 'A student with this matric number already exists' }, 409);
@@ -67,7 +67,7 @@ studentMgmtRouter.post('/', requireRole(['admin']), async (c) => {
   const admissionDate = body.admissionDate ?? now.split('T')[0];
 
   await c.env.DB.prepare(
-    `INSERT INTO students
+    `INSERT INTO inst_students
        (id, tenantId, matricNumber, firstName, lastName, email, phone,
         programmeId, level, admissionDate, status, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
@@ -86,13 +86,13 @@ studentMgmtRouter.post('/', requireRole(['admin']), async (c) => {
   return c.json({ success: true, id }, 201);
 });
 
-// ─── GET /api/students ────────────────────────────────────────────────────────
+// ─── GET /api/inst_students ────────────────────────────────────────────────────────
 
 studentMgmtRouter.get('/', requireRole(['admin', 'teacher']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { status, programmeId } = c.req.query() as Record<string, string>;
 
-  let sql = 'SELECT id, tenantId, matricNumber, firstName, lastName, email, phone, programmeId, level, admissionDate, status, createdAt, updatedAt FROM students WHERE tenantId = ?';
+  let sql = 'SELECT id, tenantId, matricNumber, firstName, lastName, email, phone, programmeId, level, admissionDate, status, createdAt, updatedAt FROM inst_students WHERE tenantId = ?';
   const args: unknown[] = [tenantId];
   if (status) { sql += ' AND status = ?'; args.push(status); }
   if (programmeId) { sql += ' AND programmeId = ?'; args.push(programmeId); }
@@ -102,7 +102,7 @@ studentMgmtRouter.get('/', requireRole(['admin', 'teacher']), async (c) => {
   return c.json({ data: results });
 });
 
-// ─── GET /api/students/:id ────────────────────────────────────────────────────
+// ─── GET /api/inst_students/:id ────────────────────────────────────────────────────
 
 studentMgmtRouter.get('/:id', requireRole(['admin', 'teacher', 'student']), async (c) => {
   const user = c.get('user');
@@ -117,14 +117,14 @@ studentMgmtRouter.get('/:id', requireRole(['admin', 'teacher', 'student']), asyn
   const student = await c.env.DB.prepare(
     `SELECT id, tenantId, matricNumber, firstName, lastName, email, phone,
             programmeId, level, admissionDate, status, createdAt, updatedAt
-     FROM students WHERE id = ? AND tenantId = ?`
+     FROM inst_students WHERE id = ? AND tenantId = ?`
   ).bind(id, tenantId).first();
 
   if (!student) return c.json({ error: 'Student not found' }, 404);
   return c.json({ data: student });
 });
 
-// ─── PATCH /api/students/:id ──────────────────────────────────────────────────
+// ─── PATCH /api/inst_students/:id ──────────────────────────────────────────────────
 
 studentMgmtRouter.patch('/:id', requireRole(['admin']), async (c) => {
   const tenantId = c.get('user').tenantId;
@@ -141,7 +141,7 @@ studentMgmtRouter.patch('/:id', requireRole(['admin']), async (c) => {
 
   const now = new Date().toISOString();
   await c.env.DB.prepare(
-    `UPDATE students
+    `UPDATE inst_students
      SET firstName   = COALESCE(?, firstName),
          lastName    = COALESCE(?, lastName),
          email       = COALESCE(?, email),
@@ -161,7 +161,7 @@ studentMgmtRouter.patch('/:id', requireRole(['admin']), async (c) => {
   return c.json({ success: true });
 });
 
-// ─── DELETE /api/students/:id ─────────────────────────────────────────────────
+// ─── DELETE /api/inst_students/:id ─────────────────────────────────────────────────
 // Soft delete — sets status to 'withdrawn' to preserve historical records.
 
 studentMgmtRouter.delete('/:id', requireRole(['admin']), async (c) => {
@@ -170,7 +170,7 @@ studentMgmtRouter.delete('/:id', requireRole(['admin']), async (c) => {
   const now = new Date().toISOString();
 
   await c.env.DB.prepare(
-    `UPDATE students SET status = 'withdrawn', updatedAt = ? WHERE id = ? AND tenantId = ?`
+    `UPDATE inst_students SET status = 'withdrawn', updatedAt = ? WHERE id = ? AND tenantId = ?`
   ).bind(now, id, tenantId).run();
 
   return c.json({ success: true, status: 'withdrawn' });

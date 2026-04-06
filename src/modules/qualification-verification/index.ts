@@ -151,7 +151,7 @@ qualificationVerificationRouter.post(
 
     // ── Persist ──────────────────────────────────────────────────────────────
     await c.env.DB.prepare(
-      `INSERT INTO qualificationVerifications (
+      `INSERT INTO inst_qualificationVerifications (
         id, tenantId, studentId,
         jambRegNumber, jambScore, jambVerifiedAt, jambApiRaw,
         waecExamNumber, waecScratchCardPin, waecExamYear, waecVerifiedAt, waecApiRaw,
@@ -193,7 +193,7 @@ qualificationVerificationRouter.post(
         message:
           verificationStatus === 'verified'
             ? 'Qualification verified via API.'
-            : 'API unavailable or partial. Please upload supporting documents for manual review.',
+            : 'API unavailable or partial. Please upload supporting inst_documents for manual review.',
       },
       201
     );
@@ -210,7 +210,7 @@ qualificationVerificationRouter.get(
     const tenantId = c.get('user').tenantId;
 
     const { results } = await c.env.DB.prepare(
-      'SELECT * FROM qualificationVerifications WHERE tenantId = ? ORDER BY createdAt DESC'
+      'SELECT * FROM inst_qualificationVerifications WHERE tenantId = ? ORDER BY createdAt DESC'
     )
       .bind(tenantId)
       .all<Record<string, unknown>>();
@@ -230,7 +230,7 @@ qualificationVerificationRouter.get(
 
     // Invariant 2: both id AND tenantId must match
     const record = await c.env.DB.prepare(
-      'SELECT * FROM qualificationVerifications WHERE id = ? AND tenantId = ?'
+      'SELECT * FROM inst_qualificationVerifications WHERE id = ? AND tenantId = ?'
     )
       .bind(id, tenantId)
       .first<Record<string, unknown>>();
@@ -255,7 +255,7 @@ qualificationVerificationRouter.post(
 
     // Verify record belongs to tenant
     const record = await c.env.DB.prepare(
-      'SELECT * FROM qualificationVerifications WHERE id = ? AND tenantId = ?'
+      'SELECT * FROM inst_qualificationVerifications WHERE id = ? AND tenantId = ?'
     )
       .bind(id, tenantId)
       .first<{ verificationStatus: string; documentKeys: string }>();
@@ -285,7 +285,7 @@ qualificationVerificationRouter.post(
 
     const now = new Date().toISOString();
     await c.env.DB.prepare(
-      `UPDATE qualificationVerifications
+      `UPDATE inst_qualificationVerifications
        SET documentKeys = ?, verificationStatus = ?, updatedAt = ?
        WHERE id = ? AND tenantId = ?`
     )
@@ -322,7 +322,7 @@ qualificationVerificationRouter.patch(
     }
 
     const record = await c.env.DB.prepare(
-      'SELECT * FROM qualificationVerifications WHERE id = ? AND tenantId = ?'
+      'SELECT * FROM inst_qualificationVerifications WHERE id = ? AND tenantId = ?'
     )
       .bind(id, tenantId)
       .first();
@@ -334,7 +334,7 @@ qualificationVerificationRouter.patch(
     const now = new Date().toISOString();
 
     await c.env.DB.prepare(
-      `UPDATE qualificationVerifications
+      `UPDATE inst_qualificationVerifications
        SET verificationStatus = ?,
            verificationMode   = 'manual',
            reviewedBy         = ?,

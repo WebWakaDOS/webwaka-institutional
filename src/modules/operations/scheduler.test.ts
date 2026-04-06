@@ -8,7 +8,7 @@
  *   4. Response body contains a valid conflict-free schedule array
  *   5. Markdown fence stripping from AI response
  *   6. New schedule can be created after a failure (retry)
- *   7. GET /api/scheduler/schedules list and detail
+ *   7. GET /api/scheduler/inst_schedules list and detail
  */
 
 import { describe, it, expect, beforeEach, vi } from 'vitest';
@@ -128,7 +128,7 @@ const VALID_PAYLOAD = {
   title: 'Semester 1 Timetable',
   type: 'academic',
   rooms: [
-    { id: 'room-lh1', name: 'Lecture Hall 1', capacity: 200, facilities: ['projector', 'ac'] },
+    { id: 'room-lh1', name: 'Lecture Hall 1', capacity: 200, inst_facilities: ['projector', 'ac'] },
     { id: 'room-s101', name: 'Seminar Room 101', capacity: 40 },
   ],
   sessions: [
@@ -147,9 +147,9 @@ const MOCK_AI_SCHEDULE_JSON = JSON.stringify({
   notes: 'All sessions scheduled without conflicts.',
 });
 
-// ─── Integration tests: POST /api/scheduler/schedules ─────────────────────────
+// ─── Integration tests: POST /api/scheduler/inst_schedules ─────────────────────────
 
-describe('POST /api/scheduler/schedules — AI schedule generation (QA-INS-2)', () => {
+describe('POST /api/scheduler/inst_schedules — AI schedule generation (QA-INS-2)', () => {
   beforeEach(() => { vi.restoreAllMocks(); });
 
   it('returns 201 with success=true and a schedule array when AI responds correctly', async () => {
@@ -160,7 +160,7 @@ describe('POST /api/scheduler/schedules — AI schedule generation (QA-INS-2)', 
     });
 
     const { app, env } = makeApp();
-    const res = await makeRequest(app, env, 'POST', '/api/scheduler/schedules', VALID_PAYLOAD);
+    const res = await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', VALID_PAYLOAD);
 
     expect(res.status).toBe(201);
     const body = await res.json() as {
@@ -185,7 +185,7 @@ describe('POST /api/scheduler/schedules — AI schedule generation (QA-INS-2)', 
     });
 
     const { app, env } = makeApp();
-    await makeRequest(app, env, 'POST', '/api/scheduler/schedules', VALID_PAYLOAD);
+    await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', VALID_PAYLOAD);
 
     expect(spy).toHaveBeenCalledOnce();
     const [, params, tenantId] = spy.mock.calls[0]!;
@@ -205,7 +205,7 @@ describe('POST /api/scheduler/schedules — AI schedule generation (QA-INS-2)', 
     });
 
     const { app, env } = makeApp();
-    const res = await makeRequest(app, env, 'POST', '/api/scheduler/schedules', VALID_PAYLOAD);
+    const res = await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', VALID_PAYLOAD);
     const body = await res.json() as { success: boolean; data: { schedule: unknown[] } };
 
     expect(body.success).toBe(true);
@@ -220,7 +220,7 @@ describe('POST /api/scheduler/schedules — AI schedule generation (QA-INS-2)', 
     });
 
     const { app, db, env } = makeApp();
-    const res = await makeRequest(app, env, 'POST', '/api/scheduler/schedules', VALID_PAYLOAD);
+    const res = await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', VALID_PAYLOAD);
     const { id } = await res.json() as { id: string };
 
     const row = db._rows.find((r) => r.id === id);
@@ -243,7 +243,7 @@ describe('AI upstream outage resilience — QA-INS-2 + Section 3', () => {
     );
 
     const { app, env } = makeApp();
-    const res = await makeRequest(app, env, 'POST', '/api/scheduler/schedules', VALID_PAYLOAD);
+    const res = await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', VALID_PAYLOAD);
 
     // HTTP layer: still 201 (we saved the request)
     expect(res.status).toBe(201);
@@ -267,7 +267,7 @@ describe('AI upstream outage resilience — QA-INS-2 + Section 3', () => {
     vi.spyOn(aiClient, 'getAICompletion').mockRejectedValue(new Error('ETIMEDOUT'));
 
     const { app, env } = makeApp();
-    const res = await makeRequest(app, env, 'POST', '/api/scheduler/schedules', VALID_PAYLOAD);
+    const res = await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', VALID_PAYLOAD);
     const body = await res.json() as { success: boolean; status: string; retryHint: string };
 
     expect(body.success).toBe(false);
@@ -279,7 +279,7 @@ describe('AI upstream outage resilience — QA-INS-2 + Section 3', () => {
     vi.spyOn(aiClient, 'getAICompletion').mockRejectedValue(new Error('Network error'));
 
     const { app, db, env } = makeApp();
-    const res = await makeRequest(app, env, 'POST', '/api/scheduler/schedules', VALID_PAYLOAD);
+    const res = await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', VALID_PAYLOAD);
     const { id } = await res.json() as { id: string };
 
     const row = db._rows.find((r) => r.id === id);
@@ -292,7 +292,7 @@ describe('AI upstream outage resilience — QA-INS-2 + Section 3', () => {
     vi.spyOn(aiClient, 'getAICompletion').mockRejectedValueOnce(new Error('Timeout'));
 
     const { app, env } = makeApp();
-    const res1 = await makeRequest(app, env, 'POST', '/api/scheduler/schedules', VALID_PAYLOAD);
+    const res1 = await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', VALID_PAYLOAD);
     const body1 = await res1.json() as { status: string };
     expect(body1.status).toBe('failed');
 
@@ -303,7 +303,7 @@ describe('AI upstream outage resilience — QA-INS-2 + Section 3', () => {
       usage: { promptTokens: 300, completionTokens: 120, totalTokens: 420 },
     });
 
-    const res2 = await makeRequest(app, env, 'POST', '/api/scheduler/schedules', {
+    const res2 = await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', {
       ...VALID_PAYLOAD,
       title: 'Semester 1 Timetable — Retry',
     });
@@ -315,7 +315,7 @@ describe('AI upstream outage resilience — QA-INS-2 + Section 3', () => {
 
 // ─── Integration tests: validation ────────────────────────────────────────────
 
-describe('POST /api/scheduler/schedules — validation', () => {
+describe('POST /api/scheduler/inst_schedules — validation', () => {
   it('returns 400 when rooms array is empty', async () => {
     vi.spyOn(aiClient, 'getAICompletion').mockResolvedValue({
       content: MOCK_AI_SCHEDULE_JSON,
@@ -323,7 +323,7 @@ describe('POST /api/scheduler/schedules — validation', () => {
       usage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
     });
     const { app, env } = makeApp();
-    const res = await makeRequest(app, env, 'POST', '/api/scheduler/schedules', {
+    const res = await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', {
       ...VALID_PAYLOAD,
       rooms: [],
     });
@@ -332,7 +332,7 @@ describe('POST /api/scheduler/schedules — validation', () => {
 
   it('returns 400 when sessions array is empty', async () => {
     const { app, env } = makeApp();
-    const res = await makeRequest(app, env, 'POST', '/api/scheduler/schedules', {
+    const res = await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', {
       ...VALID_PAYLOAD,
       sessions: [],
     });
@@ -341,7 +341,7 @@ describe('POST /api/scheduler/schedules — validation', () => {
 
   it('returns 400 when title is missing', async () => {
     const { app, env } = makeApp();
-    const res = await makeRequest(app, env, 'POST', '/api/scheduler/schedules', {
+    const res = await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', {
       rooms: VALID_PAYLOAD.rooms,
       sessions: VALID_PAYLOAD.sessions,
     });
@@ -351,10 +351,10 @@ describe('POST /api/scheduler/schedules — validation', () => {
 
 // ─── Integration tests: GET endpoints ─────────────────────────────────────────
 
-describe('GET /api/scheduler/schedules', () => {
+describe('GET /api/scheduler/inst_schedules', () => {
   beforeEach(() => { vi.restoreAllMocks(); });
 
-  it('lists all schedules for the tenant', async () => {
+  it('lists all inst_schedules for the tenant', async () => {
     vi.spyOn(aiClient, 'getAICompletion').mockResolvedValue({
       content: MOCK_AI_SCHEDULE_JSON,
       model: 'openai/gpt-4o',
@@ -362,10 +362,10 @@ describe('GET /api/scheduler/schedules', () => {
     });
 
     const { app, env } = makeApp();
-    await makeRequest(app, env, 'POST', '/api/scheduler/schedules', VALID_PAYLOAD);
-    await makeRequest(app, env, 'POST', '/api/scheduler/schedules', { ...VALID_PAYLOAD, title: 'Exam Schedule' });
+    await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', VALID_PAYLOAD);
+    await makeRequest(app, env, 'POST', '/api/scheduler/inst_schedules', { ...VALID_PAYLOAD, title: 'Exam Schedule' });
 
-    const res = await makeRequest(app, env, 'GET', '/api/scheduler/schedules');
+    const res = await makeRequest(app, env, 'GET', '/api/scheduler/inst_schedules');
     expect(res.status).toBe(200);
     const body = await res.json() as { data: unknown[] };
     expect(body.data).toHaveLength(2);
@@ -373,7 +373,7 @@ describe('GET /api/scheduler/schedules', () => {
 
   it('returns 404 for an unknown schedule id', async () => {
     const { app, env } = makeApp();
-    const res = await makeRequest(app, env, 'GET', '/api/scheduler/schedules/non-existent-sched-uuid');
+    const res = await makeRequest(app, env, 'GET', '/api/scheduler/inst_schedules/non-existent-sched-uuid');
     expect(res.status).toBe(404);
   });
 });

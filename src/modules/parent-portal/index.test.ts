@@ -80,7 +80,7 @@ describe('Parent Portal — Dashboard', () => {
     }), env);
     expect(res.status).toBe(200);
     const body = await res.json() as any;
-    expect(body.data.students).toHaveLength(0);
+    expect(body.data.inst_students).toHaveLength(0);
   });
 
   it('GET /api/parents/dashboard — returns linked student data', async () => {
@@ -106,7 +106,7 @@ describe('Parent Portal — Dashboard', () => {
     }), env);
     expect(res.status).toBe(200);
     const body = await res.json() as any;
-    expect(Array.isArray(body.data.students)).toBe(true);
-    expect(body.data.students.length).toBe(1);
+    expect(Array.isArray(body.data.inst_students)).toBe(true);
+    expect(body.data.inst_students.length).toBe(1);
   });
 });

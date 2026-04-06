@@ -24,8 +24,8 @@ describe('Library', () => {
   let ctx: ReturnType<typeof makeApp>;
   beforeEach(() => { ctx = makeApp(); });
 
-  it('POST /api/library/books — creates book (201)', async () => {
-    const res = await ctx.req('POST', '/api/library/books', {
+  it('POST /api/library/inst_books — creates book (201)', async () => {
+    const res = await ctx.req('POST', '/api/library/inst_books', {
       title: 'Introduction to Algorithms', author: 'Cormen et al.',
       isbn: '978-0262033848', totalCopies: 5,
     });
@@ -34,21 +34,21 @@ describe('Library', () => {
     expect(body.success).toBe(true);
   });
 
-  it('POST /api/library/books — 400 when title or author missing', async () => {
-    const res = await ctx.req('POST', '/api/library/books', { title: 'Only Title' });
+  it('POST /api/library/inst_books — 400 when title or author missing', async () => {
+    const res = await ctx.req('POST', '/api/library/inst_books', { title: 'Only Title' });
     expect(res.status).toBe(400);
   });
 
-  it('GET /api/library/books — lists books', async () => {
-    await ctx.req('POST', '/api/library/books', { title: 'Clean Code', author: 'Uncle Bob' });
-    const res = await ctx.req('GET', '/api/library/books');
+  it('GET /api/library/inst_books — lists inst_books', async () => {
+    await ctx.req('POST', '/api/library/inst_books', { title: 'Clean Code', author: 'Uncle Bob' });
+    const res = await ctx.req('GET', '/api/library/inst_books');
     expect(res.status).toBe(200);
     const body = await res.json() as any;
     expect(Array.isArray(body.data)).toBe(true);
   });
 
   it('POST /api/library/checkout — checks out book', async () => {
-    const bookRes = await ctx.req('POST', '/api/library/books', { title: 'CLRS', author: 'Cormen', totalCopies: 2 });
+    const bookRes = await ctx.req('POST', '/api/library/inst_books', { title: 'CLRS', author: 'Cormen', totalCopies: 2 });
     const { id: bookId } = await bookRes.json() as any;
     const res = await ctx.req('POST', '/api/library/checkout', { bookId, memberId: 'student-001' });
     expect(res.status).toBe(201);
@@ -71,7 +71,7 @@ describe('Library — Returns', () => {
 
   it('PATCH /api/library/:id/return — returns a checked-out book', async () => {
     // Create book and checkout
-    const bookRes = await ctx.req('POST', '/api/library/books', { title: 'CLRS', author: 'Cormen', totalCopies: 3 });
+    const bookRes = await ctx.req('POST', '/api/library/inst_books', { title: 'CLRS', author: 'Cormen', totalCopies: 3 });
     const { id: bookId } = await bookRes.json() as any;
     // Set availableCopies in stub
     const bookRow = ctx.db._rows.find((r: any) => r.id === bookId);
@@ -97,7 +97,7 @@ describe('Library — Returns', () => {
   });
 
   it('PATCH /api/library/:id/return — 409 for already returned', async () => {
-    const bookRes = await ctx.req('POST', '/api/library/books', { title: 'Algo', author: 'Smith', totalCopies: 1 });
+    const bookRes = await ctx.req('POST', '/api/library/inst_books', { title: 'Algo', author: 'Smith', totalCopies: 1 });
     const { id: bookId } = await bookRes.json() as any;
     const bookRow = ctx.db._rows.find((r: any) => r.id === bookId);
     if (bookRow) bookRow['availableCopies'] = 1;

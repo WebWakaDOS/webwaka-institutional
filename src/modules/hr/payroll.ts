@@ -3,8 +3,8 @@
  *
  * Task: Phase 1 — HR & ERP
  *
- * Calculates net pay (gross – taxes – deductions) for all active staff,
- * persists payslips, and emits a fintech.payout.requested event per employee.
+ * Calculates net pay (gross – taxes – deductions) for all active inst_staff,
+ * persists inst_payslips, and emits a fintech.payout.requested event per employee.
  *
  * Invariant 2 (Multi-Tenant): tenantId always from JWT.
  * Invariant 5 (Nigeria First): all amounts in kobo (NGN × 100).
@@ -16,8 +16,8 @@
  * Routes:
  *   POST  /api/payroll/runs          — Initiate a payroll run for a period
  *   GET   /api/payroll/runs          — List payroll runs
- *   GET   /api/payroll/runs/:id      — Get run detail + payslips
- *   GET   /api/payroll/payslips/:id  — Get individual payslip
+ *   GET   /api/payroll/runs/:id      — Get run detail + inst_payslips
+ *   GET   /api/payroll/inst_payslips/:id  — Get individual payslip
  *   POST  /api/payroll/runs/:id/process — Execute calculation & emit payouts
  */
 
@@ -87,7 +87,7 @@ payrollRouter.post('/runs', requireRole(['admin']), requirePermissions(['manage:
   }
 
   const existing = await c.env.DB.prepare(
-    'SELECT id FROM payrollRuns WHERE tenantId = ? AND period = ?'
+    'SELECT id FROM inst_payrollRuns WHERE tenantId = ? AND period = ?'
   ).bind(tenantId, body.period).first();
 
   if (existing) {
@@ -98,7 +98,7 @@ payrollRouter.post('/runs', requireRole(['admin']), requirePermissions(['manage:
   const now = new Date().toISOString();
 
   await c.env.DB.prepare(
-    `INSERT INTO payrollRuns
+    `INSERT INTO inst_payrollRuns
        (id, tenantId, period, status, totalGrossKobo, totalNetKobo, createdBy, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(id, tenantId, body.period, 'draft', 0, 0, createdBy, now, now).run();
@@ -110,7 +110,7 @@ payrollRouter.post('/runs', requireRole(['admin']), requirePermissions(['manage:
 payrollRouter.get('/runs', requireRole(['admin']), requirePermissions(['manage:payroll']), async (c) => {
   const tenantId = c.get('user').tenantId;
   const { results } = await c.env.DB.prepare(
-    'SELECT * FROM payrollRuns WHERE tenantId = ? ORDER BY period DESC'
+    'SELECT * FROM inst_payrollRuns WHERE tenantId = ? ORDER BY period DESC'
   ).bind(tenantId).all();
   return c.json({ data: results });
 });
@@ -121,22 +121,22 @@ payrollRouter.get('/runs/:id', requireRole(['admin']), requirePermissions(['mana
   const id = c.req.param('id');
 
   const run = await c.env.DB.prepare(
-    'SELECT * FROM payrollRuns WHERE id = ? AND tenantId = ?'
+    'SELECT * FROM inst_payrollRuns WHERE id = ? AND tenantId = ?'
   ).bind(id, tenantId).first();
 
   if (!run) return c.json({ error: 'Payroll run not found' }, 404);
 
-  const { results: payslips } = await c.env.DB.prepare(
-    'SELECT * FROM payslips WHERE payrollRunId = ? AND tenantId = ?'
+  const { results: inst_payslips } = await c.env.DB.prepare(
+    'SELECT * FROM inst_payslips WHERE payrollRunId = ? AND tenantId = ?'
   ).bind(id, tenantId).all();
 
-  return c.json({ data: { ...run, payslips } });
+  return c.json({ data: { ...run, inst_payslips } });
 });
 
-// ─── GET /api/payroll/payslips/:id ───────────────────────────────────────────
+// ─── GET /api/payroll/inst_payslips/:id ───────────────────────────────────────────
 payrollRouter.get(
-  '/payslips/:id',
-  requireRole(['admin', 'staff']),
+  '/inst_payslips/:id',
+  requireRole(['admin', 'inst_staff']),
   requirePermissions(['manage:payroll']),
   async (c) => {
     const tenantId = c.get('user').tenantId;
@@ -144,12 +144,12 @@ payrollRouter.get(
     const user = c.get('user');
 
     const payslip = await c.env.DB.prepare(
-      'SELECT * FROM payslips WHERE id = ? AND tenantId = ?'
+      'SELECT * FROM inst_payslips WHERE id = ? AND tenantId = ?'
     ).bind(id, tenantId).first<Record<string, unknown>>();
 
     if (!payslip) return c.json({ error: 'Payslip not found' }, 404);
 
-    if (user.role === 'staff' && payslip.staffId !== user.userId) {
+    if (user.role === 'inst_staff' && payslip.staffId !== user.userId) {
       return c.json({ error: 'Forbidden' }, 403);
     }
 
@@ -158,8 +158,8 @@ payrollRouter.get(
 );
 
 // ─── POST /api/payroll/runs/:id/process ──────────────────────────────────────
-// Main calculation engine: reads all active staff salaries, computes PAYE,
-// generates payslips, emits fintech.payout.requested events.
+// Main calculation engine: reads all active inst_staff salaries, computes PAYE,
+// generates inst_payslips, emits fintech.payout.requested events.
 payrollRouter.post(
   '/runs/:id/process',
   requireRole(['admin']),
@@ -169,7 +169,7 @@ payrollRouter.post(
     const runId = c.req.param('id');
 
     const run = await c.env.DB.prepare(
-      'SELECT * FROM payrollRuns WHERE id = ? AND tenantId = ?'
+      'SELECT * FROM inst_payrollRuns WHERE id = ? AND tenantId = ?'
     ).bind(runId, tenantId).first<{ id: string; period: string; status: string }>();
 
     if (!run) return c.json({ error: 'Payroll run not found' }, 404);
@@ -179,7 +179,7 @@ payrollRouter.post(
 
     const { results: staffList } = await c.env.DB.prepare(
       `SELECT id, grossSalaryKobo, pensionDeductionKobo, otherDeductionsKobo
-       FROM staff WHERE tenantId = ? AND status = ?`
+       FROM inst_staff WHERE tenantId = ? AND status = ?`
     ).bind(tenantId, 'active').all<{
       id: string;
       grossSalaryKobo: number;
@@ -196,7 +196,7 @@ payrollRouter.post(
     for (const member of staffList) {
       const grossKobo = member.grossSalaryKobo ?? 0;
 
-      // Guard: skip rows that have no salary (e.g. non-staff rows from join tables)
+      // Guard: skip rows that have no salary (e.g. non-inst_staff rows from join tables)
       if (!grossKobo) continue;
 
       const pensionKobo = member.pensionDeductionKobo ?? 0;
@@ -211,7 +211,7 @@ payrollRouter.post(
 
       const payslipId = crypto.randomUUID();
       await c.env.DB.prepare(
-        `INSERT INTO payslips
+        `INSERT INTO inst_payslips
            (id, tenantId, payrollRunId, staffId, grossKobo, taxKobo, deductionsKobo, netKobo, status, createdAt)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       ).bind(payslipId, tenantId, runId, member.id, grossKobo, monthlyTaxKobo, deductionsKobo, netKobo, 'pending', now).run();
@@ -232,7 +232,7 @@ payrollRouter.post(
     }
 
     await c.env.DB.prepare(
-      `UPDATE payrollRuns
+      `UPDATE inst_payrollRuns
        SET status = ?, totalGrossKobo = ?, totalNetKobo = ?, runAt = ?, updatedAt = ?
        WHERE id = ? AND tenantId = ?`
     ).bind('completed', totalGross, totalNet, now, now, runId, tenantId).run();
