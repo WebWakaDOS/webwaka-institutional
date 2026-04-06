@@ -10,7 +10,7 @@ name = "webwaka-institutional-staging"
 [[env.staging.d1_databases]]
 binding = "DB"
 database_name = "modules_prod"
-database_id = "ee93377c-8000-45d6-ae54-f0d4c588bf04"
+database_id = "d7278ca0-2408-40d5-a08b-d8456601f667"
 
 [[env.staging.kv_namespaces]]
 binding = "SESSIONS_KV"
@@ -34,7 +34,7 @@ name = "webwaka-institutional-production"
 [[env.production.d1_databases]]
 binding = "DB"
 database_name = "webwaka-institutional-db-production"
-database_id = "ee93377c-8000-45d6-ae54-f0d4c588bf04"
+database_id = "d01940d3-d69e-4455-94ba-bc2404cb3872"
 
 [[env.production.kv_namespaces]]
 binding = "SESSIONS_KV"
