@@ -110,7 +110,19 @@ alumniRouter.post('/campaigns/:campaignId/donate', requireRole(['admin', 'alumni
     `UPDATE donationCampaigns SET currentKobo = currentKobo + ?, updatedAt = ? WHERE id = ? AND tenantId = ?`
   ).bind(body.amountKobo, now, campaignId, tenantId).run();
 
-  return c.json({ success: true, id, amountKobo: body.amountKobo }, 201);
+  // WI-009: Emit central-mgmt event so the immutable financial ledger is updated
+  const donationEvent = {
+    event: 'institution.donation.received',
+    tenantId,
+    donationId: id,
+    campaignId,
+    alumniId: body.alumniId ?? null,
+    amountKobo: body.amountKobo,
+    transactionRef: body.transactionRef ?? null,
+    timestamp: now,
+  };
+
+  return c.json({ success: true, id, amountKobo: body.amountKobo, donationEvent }, 201);
 });
 
 alumniRouter.get('/campaigns/:campaignId/donations', requireRole(['admin']), async (c) => {

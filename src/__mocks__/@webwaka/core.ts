@@ -67,3 +67,24 @@ export function secureCORS() {
 export function rateLimit(_opts: unknown) {
   return async (_c: unknown, next: () => Promise<void>) => { await next(); };
 }
+
+/**
+ * WI-003: NDPR consent utilities
+ * assertNdprConsent throws if ndprConsent !== true.
+ * recordNdprConsent is a no-op in tests.
+ */
+export function assertNdprConsent(body: unknown): void {
+  if (!body || typeof body !== 'object' || !(body as Record<string, unknown>).ndprConsent) {
+    throw new Error('NDPR consent is required');
+  }
+}
+
+export async function recordNdprConsent(
+  _db: unknown,
+  _entityId: string,
+  _entityType: string,
+  _ip: string | null,
+  _ua: string | null,
+): Promise<void> {
+  // No-op in tests
+}

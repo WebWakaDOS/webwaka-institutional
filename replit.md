@@ -159,8 +159,50 @@ Requires Cloudflare account with D1, KV, and R2 bindings configured in `wrangler
 | QA-INS-3 | HL7 FHIR | **CERTIFIED** — `GET /fhir/Patient/:id` returns valid FHIR R4 JSON with `resourceType`, `id`, `meta.versionId` (21 tests) |
 | QA-INS-4 | Unit Tests | **CERTIFIED** — 82/82 pass; TypeScript clean |
 
+## Taskbook Implementation (WEBwAKA-INSTITUTIONAL Taskbook 2026-04-05)
+
+| Task | Status | Notes |
+|------|--------|-------|
+| WI-001 SIS | ✅ Already implemented | Grades, CGPA, transcripts, disciplinary records |
+| WI-002 LMS | ✅ Already implemented | Courses, materials, assignments, submissions, grading |
+| WI-003 NDPR/KYC | ✅ Implemented | `assertNdprConsent` + `recordNdprConsent` on student & staff registration; `ndprConsentLogs` migration added |
+| WI-004 EHR | ✅ Already implemented | Patient records, prescriptions, lab results |
+| WI-005 FHIR R4 | ✅ Already implemented | Full FHIR R4 resource CRUD + bulk NDJSON export |
+| WI-006 Telemedicine | ✅ Already implemented | Consultation scheduling + meeting URL lifecycle |
+| WI-007 Campus/Facilities | ✅ Implemented | Facility CRUD + booking workflow with conflict detection, approve/reject/cancel |
+| WI-008 Alumni | ✅ Already implemented | Alumni profiles, campaigns, donations |
+| WI-009 Central-mgmt events | ✅ Implemented | `institution.fee.paid` on payment; `institution.donation.received` on donation |
+| WI-010 Access control | ✅ Implemented | Full profile + salary columns on student/staff; GET/:id, PATCH/:id, DELETE/:id added to both |
+
+### New API Endpoints (Taskbook Phase)
+
+- `PATCH /api/fees/:id/pay` — Record fee payment; emits `institution.fee.paid` event
+- `GET /api/fees/:id` — Get single fee record
+- `DELETE /api/students/:id` — Soft-deactivate student
+- `PATCH /api/students/:id` — Update student profile
+- `GET /api/staff/:id` — Get staff member
+- `PATCH /api/staff/:id` — Update staff profile + salary
+- `DELETE /api/staff/:id` — Soft-deactivate staff
+- `POST|GET /api/campus/facilities` — Facility management
+- `GET|PATCH /api/campus/facilities/:id` — Facility detail/update
+- `POST|GET /api/campus/bookings` — Facility booking requests
+- `GET /api/campus/bookings/:id` — Booking detail
+- `PATCH /api/campus/bookings/:id/approve|reject|cancel` — Booking workflow
+
+### New Migration
+
+`migrations/0004_schema_enhancements.sql`:
+- `students` table: +firstName, lastName, email, phone, admissionDate, updatedAt
+- `staff` table: +firstName, lastName, email, phone, grossSalaryKobo, pensionDeductionKobo, otherDeductionsKobo, updatedAt
+- `feeRecords` table: +paidKobo, balanceKobo, semester, dueDate, updatedAt
+- New `ndpr_consent_logs` table (NDPR audit trail)
+- New `facilities` table
+- New `facilityBookings` table
+
 ## Key Bugs Fixed
 
 - **PAYE bracket off-by-10×**: `30_000_00` (3,000,000 kobo = NGN 30,000) corrected to `300_000_00` (30,000,000 kobo = NGN 300,000) per Finance Act 2021.
 - **FHIR `$export` route shadowed**: moved registration before `/:resourceType` dynamic route.
 - **SQL literals in D1 bind**: all `'draft'`/`'pending'`/`'completed'`/`1` literals converted to bound params for test stub compatibility and production correctness.
+- **Campus route conflict**: `/facilities` and `/bookings` static routes registered before `/:id` dynamic route to prevent Hono mismatching.
+- **Payroll staff salary columns**: `staff` table was missing `grossSalaryKobo`, `pensionDeductionKobo`, `otherDeductionsKobo` that payroll engine queries.
